@@ -1,0 +1,20 @@
+const express = require('express');
+const router = express.Router();
+const controller = require('../controllers/note');
+
+const authMiddleware = require('../middlewares/authWithJwt');
+
+// Define routes for notes
+router.get('/')
+    .all(authMiddleware)
+    .get(controller.getAllNotes) // Get all notes
+    .post(controller.createNote); // Create a new note
+
+// Define routes for specific note operations
+router.get('/:id')
+    .all(authMiddleware)
+    .get(controller.getNoteById) // Get a note by ID
+    .put(controller.updateNote) // Update a note by ID
+    .delete(controller.deleteNote); // Delete a note by ID
+
+module.exports = router;
