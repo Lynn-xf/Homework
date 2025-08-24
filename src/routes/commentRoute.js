@@ -5,15 +5,15 @@ const controller = require('../controllers/comment');
 const authMiddleware = require('../middlewares/authWithJwt');
 
 // Define routes for comments
-router.get('/')
+router.route('/')
     .all(authMiddleware)
-    .get(controller.getAllComments)
+    .get(controller.getAllcomments) // Get all comments
     .post(controller.createComment); //post comments to notes by noteId
 
 // Define routes for specific comment operations
-router.get('/:id')
+router.route('/:id')
     .all(authMiddleware)
-    .get(controller.getCommentById) //get all comments by commentId
+    .get(controller.getcommentById) //get all comments by commentId
     .put(controller.updateComment) //update comment by commentId
     .delete(controller.deleteComment);//delete comment by commentId
 

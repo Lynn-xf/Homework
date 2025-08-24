@@ -5,13 +5,13 @@ const controller = require('../controllers/note');
 const authMiddleware = require('../middlewares/authWithJwt');
 
 // Define routes for notes
-router.get('/')
-    .all(authMiddleware)
+router.route('/')
+    // .all(authMiddleware)
     .get(controller.getAllNotes) // Get all notes
     .post(controller.createNote); // Create a new note
 
 // Define routes for specific note operations
-router.get('/:id')
+router.route('/:id')
     .all(authMiddleware)
     .get(controller.getNoteById) // Get a note by ID
     .put(controller.updateNote) // Update a note by ID

@@ -6,7 +6,7 @@ const noteSchema = new mongoose.Schema({
         required: true,
     },
     note_picture: {
-        type: Image,
+        type: String,
         required: true,
     },
     ai_summary: {
