@@ -1,44 +1,50 @@
 const mongoose = require('mongoose');
 const asyncHandler = require('express-async-handler');
 const { body, query, validationResult } = require('express-validator');
-const Comment = require('../models/comment');
+// const Comment = require('../models/comment');
+let {comments} = require("../utils/data");
+const { v4: uuidv4 } = require('uuid');
+const { generateComment } = require('../utils/ollama');
+//Validation 
+const commentValidator = () => [
+    body('description')
+        .notEmpty().withMessage('Description is required')
+        .isString().withMessage('Description must be a string'),
+    body('commentBy')
+        .notEmpty().withMessage('Commenter is required')
+        .isString().withMessage('Commenter must be a string'), // no longer MongoId
+    body('commentTo')
+        .notEmpty().withMessage('Commented note is required')
+        .isString().withMessage('Commented note must be a string') // no longer MongoId
+    // Optional fields for AI comments
+];
 
+// Get all comments with optional filtering
 exports.getAllcomments = [
-    query('description', 'commentBy', 'commentTo').optional().trim(),
-
     asyncHandler(async (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
+        const {description, commentBy, commentTo} = req.query;
+
+        let filteredComments = comments;
+        if (description) {
+            filteredComments = filteredComments.filter(comment => 
+                comment.description.toLowerCase().includes(description.toLowerCase())
+            );
         }
-        const description = req.query.description || '';
-        const commentBy = req.query.commentBy || '';
-        const commentTo = req.query.commentTo || '';
-        const query = {
-            description: { $regex: description, $options: 'i' },
-            commentBy: commentBy ? mongoose.Types.ObjectId(commentBy) : undefined,
-            commentTo: commentTo ? mongoose.Types.ObjectId(commentTo) : undefined
-        };
-        const comments = await Comment.find(query).populate('commentBy', 'username').populate('commentTo', 'note_title').exec();
-        res.status(200).json(comments);
+        if (commentBy) {
+            filteredComments = filteredComments.filter(comment =>
+                comment.commentBy === commentBy
+            );
+        }
+        if (commentTo) {
+            filteredComments = filteredComments.filter(comment =>
+                comment.commentTo === commentTo
+            );
+        }
+        res.status(200).json(filteredComments);
     })
 ];
 
-const commentValidator = () => {
-    return [
-        body('description')
-            .notEmpty().withMessage('Description is required')
-            .isString().withMessage('Description must be a string'),
-        body('commentBy')
-            .notEmpty().withMessage('Commenter is required')
-            .isMongoId().withMessage('Commenter must be a valid MongoDB ObjectId'),
-        body('commentTo')
-            .notEmpty().withMessage('Commented note is required')
-            .isMongoId().withMessage('Commented note must be a valid MongoDB ObjectId')
-        // Optional fields for AI comments
-    ];
-}
-
+// Create a new comment
 exports.createComment = [
     commentValidator(),
     asyncHandler(async (req, res, next) => {
@@ -47,22 +53,29 @@ exports.createComment = [
             return res.status(400).json({ errors: errors.array() });
         }
 
-        const comment = new Comment({
+        // Generate AI comment if prompt is provided
+        let ai_comment = null;
+        if (req.body.ai_prompt_comment && !ai_comment) {
+            ai_comment = await generateComment(req.body.ai_prompt_comment);
+        }
+
+        const newComment = {
+            id: uuidv4(),
             description: req.body.description,
             commentBy: req.body.commentBy,
             commentTo: req.body.commentTo,
-            // Optional fields for AI comments
-            ai_prompt_comment: req.body.ai_prompt_comment || null,
-            ai_comment: req.body.ai_comment || null
-        });
+            ai_prompt_comment: req.body.ai_prompt_comment || '',
+            ai_comment
+        };
+        comments.push(newComment);
+        res.status(201).json(newComment);
+    }),
+];
 
-        await comment.save();
-        res.status(201).json(comment);
-    })];
-
+// Get a comment by ID
 exports.getcommentById = [
     asyncHandler(async (req, res, next) => {
-        const comment = await Comment.findById(req.params.id).populate('commentBy', 'username').populate('commentTo', 'note_title').exec();
+        const comment = comments.find(c => c.id === req.params.id);
         if (!comment) {
             return res.status(404).json({ error: 'Comment not found' });
         }
@@ -70,6 +83,7 @@ exports.getcommentById = [
     })
 ];
 
+// Update a comment by ID
 exports.updateComment = [
     commentValidator(),
     asyncHandler(async (req, res, next) => {
@@ -78,41 +92,48 @@ exports.updateComment = [
             return res.status(400).json({ errors: errors.array() });
         }
 
-        const comment = await Comment.findById(req.params.id);
-        if (!comment) {
+        const index = comments.findIndex(c => c.id === req.params.id);
+        if (index === -1) {
             return res.status(404).json({ error: 'Comment not found' });
         }
 
-        // Check if the user is allowed to update the comment
-        if (comment.commentBy.toString() !== req.user.user_id && !req.user.is_admin) {
-            return res.status(403).json({ error: 'You are not allowed to modify this comment' });
+        const existing = comments[index];
+
+        if (existing.commentBy !== req.user.user_id) {
+            return res.status(403).json({ error: 'You are not allowed to update this comment' });
         }
 
-        // Update the comment fields
-        comment.description = req.body.description;
-        comment.commentBy = req.body.commentBy;
-        comment.commentTo = req.body.commentTo;
-        comment.ai_prompt_comment = req.body.ai_prompt_comment || comment.ai_prompt_comment;
-        comment.ai_comment = req.body.ai_comment || comment.ai_comment;
+        const updatedComment = {
+            ...existing,
+            description: req.body.description,
+            commentBy: req.body.commentBy,
+            commentTo: req.body.commentTo,
+            ai_prompt_comment: req.body.ai_prompt_comment || existing.ai_prompt_comment,
+            ai_comment: req.body.ai_comment || existing.ai_comment
+        };
 
-        await comment.save();
-        res.status(200).json(comment);
+        comments[index] = updatedComment;
+        res.status(200).json(updatedComment);
+
     })
 ];
 
+// Delete a comment by ID
 exports.deleteComment = [
     asyncHandler(async (req, res, next) => {
-        const comment = await Comment.findById(req.params.id);
-        if (!comment) {
+
+        const index = comments.findIndex(c => c.id === req.params.id);
+        if (index === -1) {
             return res.status(404).json({ error: 'Comment not found' });
         }
 
-        // Check if the user is allowed to delete the comment
-        if (comment.commentBy.toString() !== req.user.user_id && !req.user.is_admin) {
+        const existing = comments[index];
+
+        if (existing.commentBy !== req.user.user_id) {
             return res.status(403).json({ error: 'You are not allowed to delete this comment' });
         }
 
-        await comment.remove();
-        res.status(204).send();
+        comments.splice(index, 1);
+        res.status(200).json({ message: 'Comment deleted successfully' });
     })
 ];

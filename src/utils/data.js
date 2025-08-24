@@ -25,8 +25,9 @@ const notes = [
   {
     id: "n1",
     note_title: "Introduction to Node.js",
-    note_picture: "/images/nodejs.png",
-    ai_summary: "This note introduces Node.js basics and runtime concepts.",
+    note_picture: "../images/note1.png",
+    ai_summary: null,
+    // ai_summary: "This note introduces Node.js basics and runtime concepts.",
     comments: ["c1", "c2"], // references to comments
     time: "2025-08-23T12:00:00Z",
     owner: "u1", // created by teacher1
@@ -34,8 +35,9 @@ const notes = [
   {
     id: "n2",
     note_title: "Express.js Routing",
-    note_picture: "/images/express.png",
-    ai_summary: "Covers routing fundamentals in Express.js applications.",
+    note_picture: "/images/note2.png",
+    ai_summary: null,
+    // ai_summary: "This note covers routing and middleware in Express.js.",
     comments: ["c3"],
     time: "2025-08-22T15:30:00Z",
     owner: "u2", // created by student1
