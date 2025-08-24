@@ -3,6 +3,15 @@ const jwt = require("jsonwebtoken");
 const asyncHandler = require("express-async-handler");
 const User = require("../models/user");
 
+exports.getAllUsers = asyncHandler(async (req, res) => {  
+    const is_admin = req.user && req.user.is_admin;
+    if (!is_admin) {
+        return res.status(403).json({ error: "Access denied" });
+    }
+    const users = await User.find({}, '-password'); // Exclude password field
+    res.status(200).json(users);
+});
+
 exports.register = asyncHandler(async (req, res) => {
     const { username, password, is_admin } = req.body;
 
