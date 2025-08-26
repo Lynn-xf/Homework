@@ -1,38 +1,44 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
 const bcrypt = require("bcrypt");
+const sequelize = require("../utils/mariadb"); // Sequelize instance
 
-const userSchema = new mongoose.Schema({
+const User = sequelize.define("User", {
     username: {
-        type: String,
-        required: true,
+        type: DataTypes.STRING,
+        allowNull: false,
         unique: true,
         trim: true
     },
     password: {
-        type: String,
-        required: true,
+        type: DataTypes.STRING,
+        allowNull: false
     },
     is_admin: {
-        type: Boolean,
-        required: true,
-        default: false
-    } //is_admin field to indicate if the user is a teacher
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false // is_admin field to indicate if the user is a teacher
+    }
+}, {
+    tableName: "users",
+    timestamps: true
 });
 
 // Hash password before saving
-userSchema.pre("save", { document: true, query: false }, async function (next) {
-    if (!this.isModified("password")) return next();
-    try {
+User.beforeCreate(async (user, options) => {
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(user.password, salt);
+});
+
+User.beforeUpdate(async (user, options) => {
+    if (user.changed("password")) {
         const salt = await bcrypt.genSalt(10);
-        this.password = await bcrypt.hash(this.password, salt);
-        next();
-    } catch (err) {
-        next(err);
+        user.password = await bcrypt.hash(user.password, salt);
     }
 });
 
-userSchema.methods.comparePassword = function (candidatePassword) {
+// Compare password method
+User.prototype.comparePassword = function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
-module.exports = mongoose.model("User", userSchema);
+module.exports = User;

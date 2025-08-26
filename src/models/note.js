@@ -1,31 +1,27 @@
-const mongoose = require("mongoose");
+// models/note.js
+const { DataTypes } = require("sequelize");
+const sequelize = require("../utils/mariadb"); // your Sequelize instance
 
-const noteSchema = new mongoose.Schema({
-    note_title: {
-        type: String,
-        required: true,
-    },
-    note_picture: {
-        type: String,
-        required: true,
-    },
-    ai_summary: {
-        type: String,
-        optional: true,
-    },
-    Comments: [{
-        type: mongoose.Schema.ObjectId,
-        ref: "Comment",
-    }],
-    Time: {
-        type: String,
-        required: true,
-    },
-    owner: {
-        type: mongoose.Schema.ObjectId,
-        ref: "User",
-        required: true,
-    }
+const Note = sequelize.define("Note", {
+  note_title: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  note_picture: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  ai_summary: {
+    type: DataTypes.STRING,
+    allowNull: true, // optional
+  },
+  time: {
+    type: DataTypes.STRING,
+    allowNull: true, // optional
+  }
+}, {
+  tableName: "notes",
+  timestamps: false, // disable createdAt/updatedAt unless you need them
 });
 
-module.exports = mongoose.model("Note", noteSchema);
+module.exports = Note;

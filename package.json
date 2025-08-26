@@ -18,11 +18,13 @@
     "express-async-handler": "^1.2.0",
     "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
+    "mariadb": "^3.4.5",
     "mongodb": "^6.18.0",
     "mongoose": "^8.18.0",
     "ollama": "^0.5.17",
     "ollama-node": "^0.1.28",
     "router": "^2.2.0",
+    "sequelize": "^6.37.7",
     "uuid": "^11.1.0"
   }
 }
