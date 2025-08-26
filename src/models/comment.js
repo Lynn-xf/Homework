@@ -13,6 +13,14 @@ const Comment = sequelize.define("Comment", {
   ai_comment: {
     type: DataTypes.TEXT,
     allowNull: true,
+  },
+    commentBy: { // <-- Add this
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  commentTo: { // <-- And this
+    type: DataTypes.INTEGER,
+    allowNull: true, // can be null if not commenting on a note
   }
 }, {
   tableName: "comments",

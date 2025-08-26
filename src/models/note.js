@@ -12,7 +12,7 @@ const Note = sequelize.define("Note", {
     allowNull: false,
   },
   ai_summary: {
-    type: DataTypes.STRING,
+    type: DataTypes.TEXT,
     allowNull: true, // optional
   },
   time: {

@@ -1,29 +1,20 @@
-const { Note, Comment, User } = require("../models"); 
-const { generateSummaryfromImage } = require("../utils/ollama");
+const { Note, Comment, User } = require("../models");
+const { generateSummaryFromImage } = require("../utils/ollama");
 const asyncHandler = require("express-async-handler");
-const { body, validationResult } = require("express-validator");
+const { body } = require("express-validator");
+const { Op } = require("sequelize");
+const path = require("path");
+const fs = require("fs");
 
-// ✅ Validation rules
+// ✅ Validation rules for creating notes
 const noteValidator = () => [
   body("note_title")
     .notEmpty().withMessage("Title is required")
     .isString().withMessage("Title must be a string"),
 
-  body("note_picture")
-    .notEmpty().withMessage("Picture of note is required")
-    .isString().withMessage("Picture must be a string"),
-
-  body("ai_summary")
-    .optional()
-    .isString().withMessage("AI summary must be a string"),
-
   body("time")
     .optional()
     .isISO8601().withMessage("Time must be a valid date string"),
-
-  body("owner")
-    .notEmpty().withMessage("Owner is required")
-    .isInt().withMessage("Owner must be a valid user ID"),
 ];
 
 // ✅ Get all notes (with optional filters)
@@ -38,47 +29,58 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
 
   const notes = await Note.findAll({
     where,
-    include: [{ model: Comment, as: "Comments" }, { model: User, as: "User", attributes: ["id", "username"] }]
+    include: [
+      { model: Comment, as: "Comments" },
+      { model: User, as: "User", attributes: ["id", "username"] }
+    ]
   });
 
   res.status(200).json(notes);
 });
 
-// ✅ Create note
-exports.createNote = [
-  noteValidator(),
-  asyncHandler(async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+exports.createNote = asyncHandler(async (req, res) => {
+  noteValidator();
+  if (!req.files || !req.files.note_picture) {
+    return res.status(400).json({ error: "Note picture is required" });
+  }
 
-    let ai_summary = req.body.ai_summary || null;
-    if (!ai_summary && req.body.note_picture) {
-      try {
-        ai_summary = await generateSummaryfromImage(req.body.note_picture);
-      } catch (error) {
-        console.error("Error generating AI summary:", error);
-        return res.status(500).json({ error: "Failed to generate AI summary" });
-      }
-    }
+  const noteFile = req.files.note_picture;
 
-    const newNote = await Note.create({
-      note_title: req.body.note_title,
-      note_picture: req.body.note_picture,
-      ai_summary,
-      time: req.body.time,
-      owner: req.body.owner
-    });
+  // Save to /utils/images/
+  const uploadPath = path.join(__dirname, "../utils/images", noteFile.name);
+  await noteFile.mv(uploadPath);
+  console.log("File uploaded to:", uploadPath);
 
-    res.status(201).json(newNote);
-  }),
-];
+  // Generate AI summary
+  const summary = await generateSummaryFromImage(uploadPath);
+  console.log("AI Summary:", summary);
+
+  if (!req.body.note_title) {
+    return res.status(400).json({ error: "Note title is required" });
+  }
+
+  const newNote = await Note.create({
+    note_title: req.body.note_title,
+    note_picture: noteFile.name,
+    ai_summary: summary,
+    time: req.body.time,
+    owner: req.user.user_id,
+  });
+
+  console.log("req.body:", req.body);
+
+  res.status(201).json(newNote);
+});
+
+
 
 // ✅ Get note by ID
 exports.getNoteById = asyncHandler(async (req, res) => {
   const note = await Note.findByPk(req.params.id, {
-    include: [{ model: Comment, as: "Comments" }, { model: User, as: "User", attributes: ["id", "username"] }]
+    include: [
+      { model: Comment, as: "Comments" },
+      { model: User, as: "User", attributes: ["id", "username"] }
+    ]
   });
 
   if (!note) {
@@ -88,15 +90,9 @@ exports.getNoteById = asyncHandler(async (req, res) => {
   res.status(200).json(note);
 });
 
-// ✅ Update note
+// ✅ Update note (partial updates allowed)
 exports.updateNote = [
-  noteValidator(),
   asyncHandler(async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
     const note = await Note.findByPk(req.params.id);
     if (!note) {
       return res.status(404).json({ error: "Note not found" });
@@ -107,10 +103,10 @@ exports.updateNote = [
     }
 
     await note.update({
-      note_title: req.body.note_title,
-      note_picture: req.body.note_picture,
-      ai_summary: req.body.ai_summary || note.ai_summary,
-      time: req.body.time,
+      note_title: req.body.note_title ?? note.note_title,
+      note_picture: req.body.note_picture ?? note.note_picture,
+      ai_summary: req.body.ai_summary ?? note.ai_summary,
+      time: req.body.time ?? note.time,
     });
 
     res.status(200).json(note);

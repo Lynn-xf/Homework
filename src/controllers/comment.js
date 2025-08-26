@@ -10,10 +10,6 @@ const commentValidator = () => [
     .notEmpty().withMessage("Description is required")
     .isString().withMessage("Description must be a string"),
 
-  body("commentBy")
-    .notEmpty().withMessage("Commenter is required")
-    .isInt().withMessage("Commenter must be a valid user ID"),
-
   body("commentTo")
     .notEmpty().withMessage("Commented note is required")
     .isInt().withMessage("Commented note must be a valid note ID"),
@@ -52,8 +48,8 @@ exports.createComment = [
     const newComment = await Comment.create({
       id: uuidv4(),
       description: req.body.description,
-      commentBy: req.body.commentBy,
-      commentTo: req.body.commentTo,
+      commentBy: req.user.user_id, // from auth middleware
+      commentTo: req.body.commentTo|| null,
       ai_prompt_comment: req.body.ai_prompt_comment || "",
       ai_comment,
     });
