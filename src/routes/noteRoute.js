@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/note');
 
-const authMiddleware = require('../middlewares/authWithJwt');
+const authMiddleware = require('../middlewares/authenticateWithJwt');
 
 // Define routes for notes
 router.route('/')

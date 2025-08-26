@@ -5,20 +5,17 @@ const bcrypt = require("bcrypt");
 const { User } = require("../models"); // import Sequelize User model
 
 // ✅ Get all users (only admin can access)
-exports.getAllUsers = asyncHandler(async (req, res) => {
-    const is_admin = req.user && req.user.is_admin;
-    if (!is_admin) {
+exports.getAllUser = asyncHandler(async (req, res) => {
+    if (!req.user || !req.user.is_admin) {
         return res.status(403).json({ error: "Access denied" });
     }
 
-    // Exclude password field
     const users = await User.findAll({
-        attributes: { exclude: ["password"] }
+        attributes: { exclude: ['password'] } // Sequelize syntax
     });
 
-    res.status(200).json(users);
+    res.json(users);
 });
-
 // ✅ Register a new user
 exports.register = asyncHandler(async (req, res) => {
     const { username, password, is_admin } = req.body;
