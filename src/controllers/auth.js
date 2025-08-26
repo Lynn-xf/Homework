@@ -1,6 +1,7 @@
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const asyncHandler = require("express-async-handler");
+const bcrypt = require("bcrypt");
 const { User } = require("../models"); // import Sequelize User model
 
 // ✅ Get all users (only admin can access)
@@ -46,20 +47,31 @@ exports.register = asyncHandler(async (req, res) => {
 });
 
 // ✅ Login user
-exports.login = asyncHandler(async (req, res) => {
-    const { username, password } = req.body;
+exports.login = async (req, res) => {
+  const { username, password } = req.body;
 
-    const user = await User.findOne({ where: { username } });
-    if (!user || user.password !== password) { // ⚠️ compare hashed pw if using bcrypt
-        return res.status(401).json({ error: "Invalid credentials" });
-    }
+  if (!username || !password) {
+    return res.status(400).json({ error: "Username and password are required" });
+  }
 
-    // Generate JWT
-    const token = jwt.sign(
-        { user_id: user.id, is_admin: user.is_admin },
-        process.env.JWT_SECRET,
-        { expiresIn: "1h" }
-    );
+  const user = await User.findOne({ where: { username } });
 
-    res.json({ token });
-});
+  if (!user) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  // Compare hashed password
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  // Generate JWT
+  const token = jwt.sign(
+    { user_id: user.id, is_admin: user.is_admin },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+
+  res.json({ token });
+};

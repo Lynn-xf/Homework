@@ -38,7 +38,7 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
 
   const notes = await Note.findAll({
     where,
-    include: [{ model: Comment, as: "comments" }, { model: User, as: "user", attributes: ["id", "username"] }]
+    include: [{ model: Comment, as: "Comments" }, { model: User, as: "User", attributes: ["id", "username"] }]
   });
 
   res.status(200).json(notes);
@@ -78,7 +78,7 @@ exports.createNote = [
 // ✅ Get note by ID
 exports.getNoteById = asyncHandler(async (req, res) => {
   const note = await Note.findByPk(req.params.id, {
-    include: [{ model: Comment, as: "comments" }, { model: User, as: "user", attributes: ["id", "username"] }]
+    include: [{ model: Comment, as: "Comments" }, { model: User, as: "User", attributes: ["id", "username"] }]
   });
 
   if (!note) {

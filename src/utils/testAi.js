@@ -1,7 +1,9 @@
-const { generateSummaryFromImage } = require("./ollama");
+// testAi.js
+const { generateSummaryFromImage, pullModel } = require("./ollama");
 
 async function test() {
-  const summary = await generateSummaryFromImage("./utils/images/note1.png");
+  await pullModel("gemma3"); 
+  const summary = await generateSummaryFromImage("./images/note1.png");
   console.log("AI Summary:", summary);
 }
 
