@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Homework API UI</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Homework REST API — Simple UI</h1>
+
+    <section class="card">
+      <h2>Register</h2>
+      <form id="registerForm">
+        <input name="username" placeholder="username" required />
+        <input name="password" type="password" placeholder="password" required />
+        <label><input type="checkbox" name="is_admin" /> is admin</label>
+        <button type="submit">Register</button>
+      </form>
+      <div id="registerResult" class="result"></div>
+    </section>
+
+    <section class="card">
+      <h2>Login</h2>
+      <form id="loginForm">
+        <input name="username" placeholder="username" required />
+        <input name="password" type="password" placeholder="password" required />
+        <button type="submit">Login</button>
+      </form>
+      <div id="loginResult" class="result"></div>
+    </section>
+
+    <section class="card">
+      <h2>Create Note (multipart)</h2>
+      <form id="createNoteForm">
+        <input name="note_title" placeholder="Title" required />
+        <input name="time" placeholder="Time (ISO)" />
+        <input name="note_picture" type="file" accept="image/*" required />
+        <button type="submit">Create Note</button>
+      </form>
+      <div id="createNoteResult" class="result"></div>
+    </section>
+
+    <section class="card">
+      <h2>Create Comment</h2>
+      <form id="createCommentForm">
+        <input name="description" placeholder="Comment text" required />
+        <input name="commentTo" placeholder="Note id" required />
+        <input name="ai_prompt_comment" placeholder="AI prompt (optional)" />
+        <button type="submit">Create Comment</button>
+      </form>
+      <div id="createCommentResult" class="result"></div>
+    </section>
+
+    <section class="card">
+      <h2>Notes</h2>
+      <div class="controls">
+        <button id="refreshNotes">Refresh</button>
+      </div>
+      <pre id="notesList" class="result"></pre>
+    </section>
+
+    <footer class="card small">
+      <small>Base URL configurable in script. Token stored in localStorage.</small>
+    </footer>
+  </main>
+
+  <script>
+    // Basic client to interact with your REST API
+    // ADJUST base URL if your API mounts elsewhere
+    const BASE = "http://localhost:3000/api"; 
+    const tokenKey = "hw_token";
+
+    function getToken() { return localStorage.getItem(tokenKey); }
+    function setToken(t) { if (t) localStorage.setItem(tokenKey, t); else localStorage.removeItem(tokenKey); }
+
+    async function postJSON(path, body) {
+      const res = await fetch(BASE + path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + getToken() || ""
+        },
+        body: JSON.stringify(body)
+      });
+      return res.json();
+    }
+
+    async function postForm(path, formData) {
+      const res = await fetch(BASE + path, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + getToken() || ""
+        },
+        body: formData
+      });
+      return res.json();
+    }
+
+    async function getJSON(path) {
+      const res = await fetch(BASE + path, {
+        headers: { "Authorization": "Bearer " + getToken() || "" }
+      });
+      return res.json();
+    }
+
+    // Register
+    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = { 
+        username: fd.get("username"),
+        password: fd.get("password"),
+        is_admin: fd.get("is_admin") ? true : false
+      };
+      const data = await postJSON("/auth/register", body);
+      document.getElementById("registerResult").textContent = JSON.stringify(data, null, 2);
+    });
+    
+    // Login
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = { username: fd.get("username"), password: fd.get("password") };
+      const data = await postJSON("/auth/login", body);
+      if (data.token) {
+        setToken(data.token);
+        document.getElementById("loginResult").textContent = "Logged in. Token saved.";
+      } else {
+        setToken(null);
+        document.getElementById("loginResult").textContent = JSON.stringify(data, null, 2);
+      }
+    });
+
+    // Create note (multipart)
+    document.getElementById("createNoteForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const data = await postForm("/notes", fd);
+      document.getElementById("createNoteResult").textContent = JSON.stringify(data, null, 2);
+      await refreshNotes();
+    });
+
+    // Create comment
+    document.getElementById("createCommentForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = {
+        description: fd.get("description"),
+        commentTo: Number(fd.get("commentTo")),
+        ai_prompt_comment: fd.get("ai_prompt_comment") || ""
+      };
+      const data = await postJSON("/comments", body);
+      document.getElementById("createCommentResult").textContent = JSON.stringify(data, null, 2);
+    });
+
+    // Refresh notes
+    async function refreshNotes() {
+      const data = await getJSON("/notes");
+      document.getElementById("notesList").textContent = JSON.stringify(data, null, 2);
+    }
+    document.getElementById("refreshNotes").addEventListener("click", refreshNotes);
+
+    // auto-refresh on load if token present
+    if (getToken()) refreshNotes();
+  </script>
+</body>
+</html>
+
