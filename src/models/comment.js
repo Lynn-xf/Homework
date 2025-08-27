@@ -2,6 +2,12 @@ const { DataTypes } = require("sequelize");
 const sequelize = require("../utils/mariadb"); // your Sequelize instance
 
 const Comment = sequelize.define("Comment", {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
+    allowNull: false,
+  },
   description: {
     type: DataTypes.TEXT,
     allowNull: false,
@@ -14,13 +20,13 @@ const Comment = sequelize.define("Comment", {
     type: DataTypes.TEXT,
     allowNull: true,
   },
-    commentBy: { // <-- Add this
+  commentBy: { 
     type: DataTypes.INTEGER,
     allowNull: false,
   },
-  commentTo: { // <-- And this
+  commentTo: { 
     type: DataTypes.INTEGER,
-    allowNull: true, // can be null if not commenting on a note
+    allowNull: true, 
   }
 }, {
   tableName: "comments",
@@ -29,10 +35,5 @@ const Comment = sequelize.define("Comment", {
 
 // Associations
 // Comment belongs to a User (commentBy)
-Comment.associate = (models) => {
-  Comment.belongsTo(models.User, { foreignKey: "commentBy", as: "author" });
-  // Comment belongs to a Note (commentTo)
-  Comment.belongsTo(models.Note, { foreignKey: "commentTo", as: "note" });
-};
 
 module.exports = Comment;

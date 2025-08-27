@@ -1,7 +1,7 @@
 const { Note, Comment, User } = require("../models");
 const { generateSummaryFromImage } = require("../utils/ollama");
 const asyncHandler = require("express-async-handler");
-const { body } = require("express-validator");
+const { body, validationResult } = require("express-validator");
 const { Op } = require("sequelize");
 const path = require("path");
 const fs = require("fs");
@@ -30,7 +30,7 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
   const notes = await Note.findAll({
     where,
     include: [
-      { model: Comment, as: "Comments" },
+      { model: Comment, as: "Comments", attributes: ["id", "description", "createdAt", "commentBy"] },
       { model: User, as: "User", attributes: ["id", "username"] }
     ]
   });
@@ -39,9 +39,18 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
 });
 
 exports.createNote = asyncHandler(async (req, res) => {
-  noteValidator();
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
   if (!req.files || !req.files.note_picture) {
     return res.status(400).json({ error: "Note picture is required" });
+  } 
+
+  const userId = req.user.user_id;
+  if (!userId) {
+    return res.status(401).json({ error: "Authentication required" });
   }
 
   const noteFile = req.files.note_picture;
@@ -63,11 +72,12 @@ exports.createNote = asyncHandler(async (req, res) => {
     note_title: req.body.note_title,
     note_picture: noteFile.name,
     ai_summary: summary,
-    time: req.body.time,
-    owner: req.user.user_id,
+    time: req.body.time || null,
+    owner: userId,
   });
 
   console.log("req.body:", req.body);
+  console.log("req.user:", req.user);
 
   res.status(201).json(newNote);
 });

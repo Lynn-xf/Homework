@@ -7,11 +7,11 @@ const Comment = require("./comment");
 User.hasMany(Note, { foreignKey: "ownerId" });
 Note.belongsTo(User, { foreignKey: "ownerId" });
 
-Note.hasMany(Comment, { foreignKey: "commentTo" });
-Comment.belongsTo(Note, { foreignKey: "commentTo" });
+Note.hasMany(Comment, { foreignKey: "commentTo", as: "Comments" });
+Comment.belongsTo(Note, { foreignKey: "commentTo", as: "Note" });
 
-User.hasMany(Comment, { foreignKey: "commentBy" });
-Comment.belongsTo(User, { foreignKey: "commentBy" });
+User.hasMany(Comment, { foreignKey: "commentBy", as: "Comments" });
+Comment.belongsTo(User, { foreignKey: "commentBy", as: "User" });
 
 sequelize.sync({ alter: true }) // auto create/update tables
   .then(() => console.log("✅ Tables synced"))

@@ -46,12 +46,11 @@ exports.createComment = [
     }
 
     const newComment = await Comment.create({
-      id: uuidv4(),
       description: req.body.description,
       commentBy: req.user.user_id, // from auth middleware
       commentTo: req.body.commentTo|| null,
       ai_prompt_comment: req.body.ai_prompt_comment || "",
-      ai_comment,
+      ai_comment: ai_comment || "",
     });
 
     res.status(201).json(newComment);

@@ -18,7 +18,8 @@ const Note = sequelize.define("Note", {
   time: {
     type: DataTypes.STRING,
     allowNull: true, // optional
-  }
+  },
+
 }, {
   tableName: "notes",
   timestamps: false, // disable createdAt/updatedAt unless you need them
