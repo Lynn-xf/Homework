@@ -68,30 +68,26 @@ exports.createNote = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Note title is required" });
   }
 
-  // Create the note immediately (placeholder summary)
+  // Create note immediately with placeholder summary
   const newNote = await Note.create({
     note_title: req.body.note_title,
     note_picture: noteFile.name,
-    ai_summary: "Processing...",  // placeholder
+    ai_summary: "Processing...", // placeholder
     time: req.body.time || null,
     owner: userId,
   });
 
   // Fire off AI summary generation in background
   generateSummaryFromImage(uploadPath)
-    .then(summary => {
-      return newNote.update({ ai_summary: summary });
-    })
-    .catch(err => {
-      console.error("Error updating AI summary:", err);
-    });
+    .then((summary) => newNote.update({ ai_summary: summary }))
+    .catch((err) => console.error("Error updating AI summary:", err));
 
-  console.log("req.body:", req.body);
-  console.log("req.user:", req.user);
-
+    console.log("req.body:", req.body);
+    console.log("req.user:", req.user);
   // Respond immediately, don't wait for AI
   res.status(201).json(newNote);
 });
+
 
 // ✅ Delete all notes
 exports.deleteAllNotes = asyncHandler(async (req, res) => {

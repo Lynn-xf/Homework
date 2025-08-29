@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 
 const API_URL = "http://ec2-54-252-250-12.ap-southeast-2.compute.amazonaws.com/api/notes";
-const AUTH_TOKEN ="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJpc19hZG1pbiI6dHJ1ZSwiaWF0IjoxNzU2NDM4Mjk5LCJleHAiOjE3NTY0NDE4OTl9.PlkJVzSrAONz2M_Cx1gChMZSRGMll_HojU_JbJ5xsU4"; // replace with your real token
+const AUTH_TOKEN ="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJpc19hZG1pbiI6dHJ1ZSwiaWF0IjoxNzU2NDUzNDg5LCJleHAiOjE3NTY0NTcwODl9.8AdGBpa-UHehzn0arZwKwXnfPFpQIlg1bbB51wqQ2GI"; // replace with your real token
 
 // folder where all images are stored
 const IMAGES_DIR = path.resolve("./images");

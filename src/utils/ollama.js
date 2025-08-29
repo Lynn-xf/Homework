@@ -2,12 +2,24 @@ const fs = require("fs");
 const path = require("path");
 const { Ollama } = require("ollama");
 
-const ollama = new Ollama({ host: "http://ollama:11434" });
+// List of Ollama hosts
+const hosts = ["http://ollama1:11434", "http://ollama2:11434"];
+let current = 0;
 
-async function pullModel(modelName="gemma3:4b") {
+// Function to get next Ollama client (round-robin)
+function getOllamaClient() {
+  const client = new Ollama({ host: hosts[current] });
+  current = (current + 1) % hosts.length;
+  return client;
+}
+
+async function pullModel(modelName = "gemma3:4b") {
   try {
-    await ollama.pull({ model: modelName });
-    console.log(`Model ${modelName} pulled successfully.`);
+    for (const host of hosts) {
+      const client = new Ollama({ host });
+      await client.pull({ model: modelName });
+      console.log(`Model ${modelName} pulled successfully on ${host}`);
+    }
   } catch (err) {
     console.error(`Error pulling model ${modelName}:`, err);
   }
@@ -18,13 +30,15 @@ async function generateSummaryFromImage(imagePath) {
     const absolutePath = path.resolve(imagePath);
     const imageData = fs.readFileSync(absolutePath);
 
+    const ollama = getOllamaClient();
+
     const response = await ollama.chat({
       model: "gemma3:4b",
       messages: [
         {
           role: "user",
           content: "Summarize the content of this image:",
-          images: [imageData], 
+          images: [imageData],
         },
       ],
     });

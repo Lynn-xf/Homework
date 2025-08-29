@@ -1,5 +1,4 @@
 version: "3.8"
-
 services:
   db:
     image: mariadb:10.11
@@ -16,13 +15,19 @@ services:
     networks:
       - homework_net
 
-  ollama:
+  ollama1:
     image: ollama/ollama:latest
-    restart: always
+    container_name: ollama1
     ports:
       - "11434:11434"
-    volumes:
-      - ollama_models:/root/.ollama
+    networks:
+      - homework_net
+
+  ollama2:
+    image: ollama/ollama:latest
+    container_name: ollama2
+    ports:
+      - "11435:11434" # map container 11434 to host 11435
     networks:
       - homework_net
 
@@ -38,13 +43,14 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_PORT: 3306
     ports:
-      - "80:3000"        # host port 80 -> container 3000 (public)
+      - "80:3000"
       - "${PORT}:3000"
     volumes:
       - ./src/utils/images:/usr/src/app/src/utils/images
     depends_on:
       - db
-      - ollama
+      - ollama1
+      - ollama2
     networks:
       - homework_net
 
@@ -55,4 +61,3 @@ volumes:
 networks:
   homework_net:
     driver: bridge
-
