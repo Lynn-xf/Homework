@@ -13,7 +13,12 @@ app.use(express.json());
 app.use(cors({exposedHeaders: ['Authorization'],origin: '*'}));
 app.use(fileUpload());
 app.use("/images", express.static(path.join(__dirname, "utils/images")));
-pullModel("gemma3");
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('/webclient', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+pullModel("gemma3:4b");
 
 
 app.use('/api', indexRouter);

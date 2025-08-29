@@ -7,7 +7,7 @@ const CommentRouter = require('./commentRoute');
 const router = express.Router();
 
 router.use('/auth', AuthRouter);
-router.use('/notes', NoteRouter);  
+router.use('/notes', NoteRouter);
 router.use('/comments', CommentRouter);
 
 module.exports = router;

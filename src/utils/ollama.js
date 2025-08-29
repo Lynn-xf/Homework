@@ -2,9 +2,9 @@ const fs = require("fs");
 const path = require("path");
 const { Ollama } = require("ollama");
 
-const ollama = new Ollama({ host: "http://localhost:11434" });
+const ollama = new Ollama({ host: "http://ollama:11434" });
 
-async function pullModel(modelName) {
+async function pullModel(modelName="gemma3:4b") {
   try {
     await ollama.pull({ model: modelName });
     console.log(`Model ${modelName} pulled successfully.`);
@@ -19,7 +19,7 @@ async function generateSummaryFromImage(imagePath) {
     const imageData = fs.readFileSync(absolutePath);
 
     const response = await ollama.chat({
-      model: "gemma3",
+      model: "gemma3:4b",
       messages: [
         {
           role: "user",
