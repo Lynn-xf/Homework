@@ -18,6 +18,8 @@ const noteValidator = () => [
 ];
 
 // ✅ Get all notes (with optional filters)
+
+// ✅ Get all notes (with optional filters)
 exports.getAllNotes = asyncHandler(async (req, res) => {
   const { note_title, ai_summary, time, owner } = req.query;
 
@@ -30,12 +32,14 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
   const notes = await Note.findAll({
     where,
     include: [
+      { model: Comment, as: "Comments", attributes: ["id", "description", "createdAt", "commentBy", "ai_comment"] },
       { model: User, as: "User", attributes: ["id", "username"] }
     ]
   });
 
   res.status(200).json(notes);
 });
+
 
 exports.createNote = asyncHandler(async (req, res) => {
   const errors = validationResult(req);

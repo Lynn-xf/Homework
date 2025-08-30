@@ -1,3 +1,4 @@
+/* ...existing code... */
 :root{
   --bg:#f6f8fa;
   --card:#ffffff;
@@ -8,7 +9,7 @@
 *{box-sizing:border-box}
 body{
   margin:0;
-  font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;
+  font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial, sans-serif;
   background:linear-gradient(180deg,#eef2ff 0%,var(--bg) 100%);
   color:#111827;
   padding:24px;
@@ -17,7 +18,7 @@ body{
   max-width:var(--maxw);
   margin:0 auto;
 }
-h1{margin:0 0 12px;font-size:20px}
+h1{margin:0 0 12px;font-size:25px; text-align: center; color: darkslateblue;}
 .card{
   background:var(--card);
   border-radius:8px;
@@ -57,7 +58,72 @@ button:hover{opacity:0.95}
   .controls{justify-content:flex-end}
 }
 
-/* Notes grid and card */
+/* New auth grid: make register/login half-height/narrower */
+.auth-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap:12px;
+  align-items:start;
+}
+.auth-column{
+  background:transparent;
+  padding:0;
+  max-height:220px; /* half-height feel */
+  overflow:auto;
+}
+.auth-column h2{margin:0 0 8px;font-size:16px}
+.compact-form input{ padding:6px 8px; font-size:13px; margin:6px 0; }
+.compact-form .small-btn{ margin-top:6px; }
+
+/* user info box */
+.auth-info{ align-self:center; }
+
+/* label for is admin checkbod */
+.small-label{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-size:13px;
+  cursor:pointer;
+}
+.small-label input[type="checkbox"]{
+  width:14px;
+  height:14px;
+  margin:0;
+  padding:0;
+  transform:translateY(1px);
+  /* fallback for consistent sizing across browsers */
+  -webkit-appearance:checkbox;
+  appearance:checkbox;
+}
+/* small button style — do not span full width */
+.small-btn{
+  width:auto;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 10px;
+  font-size:13px;
+  border-radius:6px;
+}
+
+/* search input and controls row */
+.controls-row{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.search-input{
+  flex:1;
+  min-width:160px;
+  padding:8px 10px;
+  margin:0;
+}
+
+/* icon spacing (right side icon already placed after text) */
+.small-btn .icon{ margin-left:6px; opacity:0.95; }
+
+/* Notes grid / card (existing) */
 .notes-grid{
   display:grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -87,9 +153,8 @@ button:hover{opacity:0.95}
   object-fit:contain;
   display:block;
 }
-.note-meta{
-  padding:10px;
-}
+.note-meta{padding:10px}
 .note-meta h3{margin:0 0 6px;font-size:16px}
 .muted{color:var(--muted);font-size:12px;margin-bottom:6px}
 .note-comments{padding:8px 10px;border-top:1px solid #f1f5f9;background:#fafcff;font-size:13px}
+.hidden{display:none}

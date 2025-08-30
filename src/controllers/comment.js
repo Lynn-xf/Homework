@@ -1,8 +1,8 @@
 const asyncHandler = require("express-async-handler");
 const { body, validationResult } = require("express-validator");
 const { v4: uuidv4 } = require("uuid");
-const { generateComment } = require("../utils/ollama");
 const { Comment } = require("../models"); // Sequelize Comment model
+const { getArtSuggestion } = require("../utils/harvardArt");
 
 // ✅ Validation
 const commentValidator = () => [
@@ -40,17 +40,19 @@ exports.createComment = [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    let ai_comment = null;
-    if (req.body.ai_prompt_comment && !ai_comment) {
-      ai_comment = await generateComment(req.body.ai_prompt_comment);
+    let ai_comment = "";
+
+    if (req.body.ai_prompt_comment) {
+      // Fetch art suggestion from Harvard API
+      ai_comment = await getArtSuggestion(req.body.ai_prompt_comment);
     }
 
     const newComment = await Comment.create({
       description: req.body.description,
-      commentBy: req.user.user_id, // from auth middleware
-      commentTo: req.body.commentTo|| null,
+      commentBy: req.user.user_id,
+      commentTo: req.body.commentTo || null,
       ai_prompt_comment: req.body.ai_prompt_comment || "",
-      ai_comment: ai_comment || "",
+      ai_comment
     });
 
     res.status(201).json(newComment);

@@ -3,168 +3,369 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Homework API UI</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <title>Homework API</title>
+  <link rel="stylesheet" href="./stylesheet.css" />
+  <style>
+    .topnav{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:8px 12px;
+      background:transparent;
+    }
+    .topnav .nav-left{flex:1}
+    .topnav a{color:inherit; text-decoration:none; padding:6px 8px; border-radius:6px}
+    .topnav a:hover{background:rgba(0,0,0,0.04)}
+    .topnav .nav-right{display:flex; gap:8px; align-items:center}
+    .hidden{display:none}
+  </style>
 </head>
 <body>
+  <nav class="topnav">
+    <div class="nav-left">
+      <a href="#" id="navHome">Home</a>
+    </div>
+    <div class="nav-right">
+      <a href="#" id="navLogin">Login</a>
+      <a href="#" id="navRegister">Register</a>
+      <span id="navUser" class="hidden"></span>
+      <button id="navLogout" class="small-btn hidden">Logout</button>
+    </div>
+  </nav>
+
   <main class="container">
-    <h1>Homework REST API — Simple UI</h1>
+    <h1>Homework REST API</h1>
 
-    <section class="card">
-      <h2>Register</h2>
-      <form id="registerForm">
-        <input name="username" placeholder="username" required />
-        <input name="password" type="password" placeholder="password" required />
-        <label><input type="checkbox" name="is_admin" /> is admin</label>
-        <button type="submit">Register</button>
-      </form>
-      <div id="registerResult" class="result"></div>
+    <section class="card" id="authSection">
+      <div class="auth-grid">
+        <div class="auth-column">
+          <h2>Register</h2>
+          <form id="registerForm" class="compact-form">
+            <input name="username" placeholder="username" required />
+            <input name="password" type="password" placeholder="password" required />
+            <label class="small-label"><input type="checkbox" name="is_admin" /> is admin</label>
+            <button type="submit" class="small-btn">Register</button>
+          </form>
+          <div id="registerResult" class="result"></div>
+        </div>
+
+        <div class="auth-column">
+          <h2>Login</h2>
+          <form id="loginForm" class="compact-form">
+            <input name="username" placeholder="username" required />
+            <input name="password" type="password" placeholder="password" required />
+            <button type="submit" class="small-btn">Login</button>
+          </form>
+          <div id="loginResult" class="result"></div>
+        </div>
+
+        <div id="userInfo" class="hidden auth-info">
+          <h3>User</h3>
+          <div id="whoami" class="result"></div>
+          <button id="logoutBtn" class="small-btn">Logout</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="actionsSection">
+      <div class="controls-row">
+        <input id="searchInput" class="search-input" placeholder="Search notes by title..." />
+        <button id="searchBtn" class="small-btn">Search <span class="icon">🔍</span></button>
+        <button id="refreshNotes" class="small-btn">Refresh <span class="icon">⟳</span></button>
+        <button id="deleteAllNotesBtn" class="small-btn hidden">Delete All Notes (admin)</button>
+      </div>
     </section>
 
     <section class="card">
-      <h2>Login</h2>
-      <form id="loginForm">
-        <input name="username" placeholder="username" required />
-        <input name="password" type="password" placeholder="password" required />
-        <button type="submit">Login</button>
-      </form>
-      <div id="loginResult" class="result"></div>
-    </section>
-
-    <section class="card">
-      <h2>Create Note (multipart)</h2>
+      <h2>Create Note</h2>
       <form id="createNoteForm">
         <input name="note_title" placeholder="Title" required />
         <input name="time" placeholder="Time (ISO)" />
-        <input name="note_picture" type="file" accept="image/*" required />
-        <button type="submit">Create Note</button>
+        <input name="note_picture" type="file" accept="image/*" multiple required />
+        <button type="submit">Create Note(s)</button>
       </form>
       <div id="createNoteResult" class="result"></div>
     </section>
 
     <section class="card">
-      <h2>Create Comment</h2>
-      <form id="createCommentForm">
-        <input name="description" placeholder="Comment text" required />
-        <input name="commentTo" placeholder="Note id" required />
-        <input name="ai_prompt_comment" placeholder="AI prompt (optional)" />
-        <button type="submit">Create Comment</button>
-      </form>
-      <div id="createCommentResult" class="result"></div>
-    </section>
-
-    <section class="card">
       <h2>Notes</h2>
-      <div class="controls">
-        <button id="refreshNotes">Refresh</button>
-      </div>
-      <pre id="notesList" class="result"></pre>
+      <div id="notesGrid" class="notes-grid"></div>
     </section>
 
     <footer class="card small">
-      <small>Base URL configurable in script. Token stored in localStorage.</small>
+      <small>UI and API share same origin. Token stored in localStorage.</small>
     </footer>
   </main>
 
   <script>
-    // Basic client to interact with your REST API
-    // ADJUST base URL if your API mounts elsewhere
-    const BASE = "/api"; 
+    const BASE = "/api";
     const tokenKey = "hw_token";
 
-    function getToken() { return localStorage.getItem(tokenKey); }
-    function setToken(t) { if (t) localStorage.setItem(tokenKey, t); else localStorage.removeItem(tokenKey); }
+    function getToken(){ return localStorage.getItem(tokenKey); }
+    function setToken(t){ if(t) localStorage.setItem(tokenKey, t); else localStorage.removeItem(tokenKey); }
+    function authHeader(){ const t=getToken(); return t?{ "Authorization": `Bearer ${t}` } : {}; }
 
-    async function postJSON(path, body) {
-      const res = await fetch(BASE + path, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + getToken() || ""
-        },
-        body: JSON.stringify(body)
-      });
-      return res.json();
+    async function postJSON(path, body){ const res=await fetch(BASE+path,{method:"POST",headers:{"Content-Type":"application/json",...authHeader()},body:JSON.stringify(body)}); return res.json(); }
+    async function postForm(path, formData){ const res=await fetch(BASE+path,{method:"POST",headers:{...authHeader()},body:formData}); return res.json(); }
+    async function getJSON(path){ const res=await fetch(BASE+path,{headers:{...authHeader()}}); return res.json(); }
+    async function deleteJSON(path){ const res=await fetch(BASE+path,{method:"DELETE",headers:{...authHeader()}}); return res.json(); }
+    async function putJSON(path, body){ const res=await fetch(BASE+path,{method:"PUT",headers:{"Content-Type":"application/json",...authHeader()},body:JSON.stringify(body)}); return res.json(); }
+
+    // decode jwt payload (no signature verify) to get user_id and is_admin
+    function parseJwt(token){
+      if(!token) return null;
+      try{
+        const payload = token.split('.')[1];
+        const json = atob(payload.replace(/-/g,'+').replace(/_/g,'/'));
+        return JSON.parse(decodeURIComponent(escape(json)));
+      }catch(e){ return null; }
     }
 
-    async function postForm(path, formData) {
-      const res = await fetch(BASE + path, {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + getToken() || ""
-        },
-        body: formData
-      });
-      return res.json();
+    function updateAuthUI(){
+      const token = getToken();
+      const payload = parseJwt(token);
+
+      // hide auth forms when logged in
+      document.getElementById("authSection").classList.toggle("hidden", !!token);
+
+      // user info panel
+      document.getElementById("userInfo").classList.toggle("hidden", !token);
+
+      // nav login/register visibility
+      document.getElementById("navLogin").classList.toggle("hidden", !!token);
+      document.getElementById("navRegister").classList.toggle("hidden", !!token);
+      document.getElementById("navLogout").classList.toggle("hidden", !token);
+
+      const navUser = document.getElementById("navUser");
+      if(payload){
+        document.getElementById("whoami").textContent = `id: ${payload.user_id ?? payload.id} | admin: ${payload.is_admin ? "yes":"no"}`;
+        document.getElementById("deleteAllNotesBtn").classList.toggle("hidden", !payload.is_admin);
+        navUser.classList.remove("hidden");
+        navUser.textContent = `User ${payload.user_id ?? payload.id}`;
+      } else {
+        document.getElementById("whoami").textContent = "";
+        document.getElementById("deleteAllNotesBtn").classList.add("hidden");
+        navUser.classList.add("hidden");
+        navUser.textContent = "";
+      }
     }
 
-    async function getJSON(path) {
-      const res = await fetch(BASE + path, {
-        headers: { "Authorization": "Bearer " + getToken() || "" }
-      });
-      return res.json();
-    }
+    // nav logout click
+    document.getElementById("navLogout").addEventListener("click", (e) => {
+      e.preventDefault();
+      setToken(null);
+      updateAuthUI();
+      // optionally refresh notes to reflect logged-out view
+      refreshNotes();
+    });
 
     // Register
-    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+    document.getElementById("registerForm").addEventListener("submit", async (e)=>{
       e.preventDefault();
-      const fd = new FormData(e.target);
-      const body = { 
-        username: fd.get("username"),
-        password: fd.get("password"),
-        is_admin: fd.get("is_admin") ? true : false
-      };
+      const fd=new FormData(e.target);
+      const body={ username: fd.get("username"), password: fd.get("password"), is_admin: fd.get("is_admin")?true:false };
       const data = await postJSON("/auth/register", body);
       document.getElementById("registerResult").textContent = JSON.stringify(data, null, 2);
-    });
-    
-    // Login
-    document.getElementById("loginForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const body = { username: fd.get("username"), password: fd.get("password") };
-      const data = await postJSON("/auth/login", body);
-      if (data.token) {
-        setToken(data.token);
-        document.getElementById("loginResult").textContent = "Logged in. Token saved.";
-      } else {
-        setToken(null);
-        document.getElementById("loginResult").textContent = JSON.stringify(data, null, 2);
-      }
+      if (data.token) { setToken(data.token); updateAuthUI(); refreshNotes(); }
     });
 
-    // Create note (multipart)
-    document.getElementById("createNoteForm").addEventListener("submit", async (e) => {
+    // Login
+    document.getElementById("loginForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const fd=new FormData(e.target);
+      const body={ username: fd.get("username"), password: fd.get("password") };
+      const data = await postJSON("/auth/login", body);
+      if(data.token){ setToken(data.token); document.getElementById("loginResult").textContent = "Logged in. Token saved."; updateAuthUI(); refreshNotes(); }
+      else { setToken(null); document.getElementById("loginResult").textContent = JSON.stringify(data, null, 2); updateAuthUI(); }
+    });
+
+    document.getElementById("logoutBtn").addEventListener("click", ()=>{ setToken(null); updateAuthUI(); });
+
+    // nav link behavior
+    document.getElementById("navHome").addEventListener("click", (e)=>{ e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+    document.getElementById("navLogin").addEventListener("click", (e)=>{ e.preventDefault(); document.getElementById("authSection").classList.remove("hidden"); document.querySelector("#loginForm input").focus(); });
+    document.getElementById("navRegister").addEventListener("click", (e)=>{ e.preventDefault(); document.getElementById("authSection").classList.remove("hidden"); document.querySelector("#registerForm input").focus(); });
+
+    // Create note(s) (supports multiple files)
+    document.getElementById("createNoteForm").addEventListener("submit", async (e)=>{
       e.preventDefault();
       const fd = new FormData(e.target);
-      const data = await postForm("/notes", fd);
-      document.getElementById("createNoteResult").textContent = JSON.stringify(data, null, 2);
+      const files = e.target.note_picture.files;
+      if(files.length>1){
+        const mf = new FormData();
+        mf.append("note_title", fd.get("note_title"));
+        mf.append("time", fd.get("time"));
+        for(const f of files) mf.append("note_picture", f, f.name);
+        const data = await postForm("/notes", mf);
+        document.getElementById("createNoteResult").textContent = JSON.stringify(data, null, 2);
+      } else {
+        const data = await postForm("/notes", fd);
+        document.getElementById("createNoteResult").textContent = JSON.stringify(data, null, 2);
+      }
       await refreshNotes();
     });
 
-    // Create comment
-    document.getElementById("createCommentForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      const body = {
-        description: fd.get("description"),
-        commentTo: Number(fd.get("commentTo")),
-        ai_prompt_comment: fd.get("ai_prompt_comment") || ""
-      };
+    // comment creation - only for admins per requirement (UI shows only to admin on each card)
+    async function createComment(noteId, description, ai_prompt_comment){
+      const body = { description, commentTo: noteId };
+      if (ai_prompt_comment) body.ai_prompt_comment = ai_prompt_comment;
       const data = await postJSON("/comments", body);
-      document.getElementById("createCommentResult").textContent = JSON.stringify(data, null, 2);
+      return data;
+    }
+
+    // delete all notes (admin only)
+    document.getElementById("deleteAllNotesBtn").addEventListener("click", async ()=>{
+      if(!confirm("Delete ALL notes?")) return;
+      const data = await deleteJSON("/notes");
+      alert(JSON.stringify(data));
+      refreshNotes();
     });
 
-    // Refresh notes
-    async function refreshNotes() {
-      const data = await getJSON("/notes");
-      document.getElementById("notesList").textContent = JSON.stringify(data, null, 2);
+    // refresh (with optional search)
+    async function refreshNotes(){
+      const q = document.getElementById("searchInput").value.trim();
+      const url = q ? `/notes?note_title=${encodeURIComponent(q)}` : "/notes";
+      const data = await getJSON(url);
+      renderNotes(data);
     }
     document.getElementById("refreshNotes").addEventListener("click", refreshNotes);
+    document.getElementById("searchBtn").addEventListener("click", refreshNotes);
 
-    // auto-refresh on load if token present
-    if (getToken()) refreshNotes();
+    // render notes with per-note controls depending on role/ownership
+    async function renderNotes(data){
+      const container = document.getElementById("notesGrid");
+      container.innerHTML = "";
+      if(!Array.isArray(data)){ container.textContent = JSON.stringify(data, null, 2); return; }
+      const token = getToken();
+      const payload = parseJwt(token);
+      const myId = payload ? (payload.user_id ?? payload.id) : null;
+      const isAdmin = payload ? !!payload.is_admin : false;
+
+      data.forEach(note=>{
+        const card = document.createElement("div");
+        card.className = "note-card";
+
+        const imgWrap = document.createElement("div");
+        imgWrap.className = "note-imgwrap";
+        const img = document.createElement("img");
+        if(note.note_picture) img.src = `/images/${note.note_picture}`;
+        imgWrap.appendChild(img);
+
+        const title = document.createElement("h3");
+        title.textContent = note.note_title || "Untitled";
+
+        const meta = document.createElement("div");
+        meta.className = "muted";
+        meta.textContent = `owner: ${note.owner ?? (note.User?.id ?? "unknown")} • time: ${note.time ?? ""}`;
+
+        const summary = document.createElement("p");
+        summary.textContent = note.ai_summary ?? "";
+
+        // controls row
+        const ctr = document.createElement("div");
+        ctr.style.display = "flex";
+        ctr.style.gap = "6px";
+        ctr.style.marginTop = "8px";
+
+        // delete per-note: allowed for admin or owner
+        if(isAdmin || (myId && Number(myId) === Number(note.owner))){
+          const del = document.createElement("button");
+          del.className = "small-btn";
+          del.textContent = "Delete";
+          del.addEventListener("click", async ()=>{
+            if(!confirm("Delete this note?")) return;
+            const r = await deleteJSON(`/notes/${note.id}`);
+            alert(JSON.stringify(r));
+            refreshNotes();
+          });
+          ctr.appendChild(del);
+        }
+
+        // update note (owner only)
+        if(myId && Number(myId) === Number(note.owner)){
+          const upd = document.createElement("button");
+          upd.className = "small-btn";
+          upd.textContent = "Edit Title";
+          upd.addEventListener("click", async ()=>{
+            const nv = prompt("New title:", note.note_title || "");
+            if(nv==null) return;
+            const r = await putJSON(`/notes/${note.id}`, { note_title: nv });
+            alert(JSON.stringify(r));
+            refreshNotes();
+          });
+          ctr.appendChild(upd);
+        }
+
+        // comment button (admin only as requested)
+        if(isAdmin){
+          const cbtn = document.createElement("button");
+          cbtn.className = "small-btn";
+          cbtn.textContent = "Comment";
+          cbtn.addEventListener("click", ()=>{
+            // avoid adding duplicate inline form
+            if (card.querySelector(".comment-form-inline")) return;
+
+            const form = document.createElement("form");
+            form.className = "comment-form-inline";
+            form.style.marginTop = "8px";
+            form.innerHTML = `
+              <input name="description" placeholder="Comment text" required />
+              <input name="ai_prompt_comment" placeholder="Prompt to get reccomendation from Harvard Art Muesuem(optional)" />
+              <div style="display:flex; gap:6px; margin-top:6px;">
+                <button type="submit" class="small-btn">Send</button>
+                <button type="button" class="small-btn cancel-btn">Cancel</button>
+              </div>
+            `;
+
+            // cancel handler
+            form.querySelector(".cancel-btn").addEventListener("click", (ev)=>{
+              ev.preventDefault();
+              form.remove();
+            });
+
+            // submit handler
+            form.addEventListener("submit", async (ev)=>{
+              ev.preventDefault();
+              const fd = new FormData(form);
+              const desc = fd.get("description");
+              const aiPrompt = fd.get("ai_prompt_comment");
+              const res = await createComment(note.id, desc, aiPrompt);
+              alert(JSON.stringify(res));
+              form.remove();
+              refreshNotes();
+            });
+
+            card.appendChild(form);
+          });
+          ctr.appendChild(cbtn);
+        }
+
+        // comments display (if present)
+        const commentsDiv = document.createElement("div");
+        if(note.Comments && note.Comments.length){
+          const list = document.createElement("ul");
+          note.Comments.forEach(c => {
+            const li = document.createElement("li");
+            const aiPart = c.ai_comment ? ` _____reccomendation from Harvard art Museum: ${c.ai_comment}` : "";
+            li.textContent = `${c.description}${aiPart} (${new Date(c.createdAt).toLocaleString()})`;
+            list.appendChild(li);
+          });
+          commentsDiv.appendChild(list);
+        }
+
+        card.appendChild(imgWrap);
+        card.appendChild(title);
+        card.appendChild(meta);
+        card.appendChild(summary);
+        card.appendChild(ctr);
+        card.appendChild(commentsDiv);
+
+        container.appendChild(card);
+      });
+    }
+
+    // init UI state
+    updateAuthUI();
+    if(getToken()) refreshNotes();
   </script>
 </body>
-</html>
-

@@ -15,7 +15,7 @@ router.route('/:id')
     .all(authMiddleware)
     .get(controller.getCommentById) //get all comments by commentId
     .put(controller.updateComment) //update comment by commentId
-    .delete(controller.deleteComment);//delete comment by commentId
+    .delete(controller.deleteComment); // delete comment by commentId
 
 
 module.exports = router;
