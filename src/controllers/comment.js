@@ -1,8 +1,9 @@
 const asyncHandler = require("express-async-handler");
 const { body, validationResult } = require("express-validator");
 const { v4: uuidv4 } = require("uuid");
-const { Comment } = require("../models"); // Sequelize Comment model
+const { Comment, User, Note } = require("../models"); // Sequelize models
 const { getArtSuggestion } = require("../utils/harvardArt");
+const { Op } = require("sequelize");
 
 // ✅ Validation
 const commentValidator = () => [
@@ -27,7 +28,26 @@ exports.getAllComments = asyncHandler(async (req, res) => {
   if (commentBy) where.commentBy = commentBy;
   if (commentTo) where.commentTo = commentTo;
 
-  const comments = await Comment.findAll({ where });
+  const comments = await Comment.findAll({ 
+    where,
+    include: [
+      {
+        model: Note,
+        as: "Note",
+        attributes: ["note_title", "id"]
+      }
+    ]
+  });
+
+  // Manually attach user information by looking up cognitoId
+  for (let comment of comments) {
+    const user = await User.findOne({
+      where: { cognitoId: comment.commentBy },
+      attributes: ["username", "cognitoId"]
+    });
+    comment.dataValues.User = user;
+  }
+
   res.status(200).json(comments);
 });
 
@@ -42,29 +62,70 @@ exports.createComment = [
 
     let ai_comment = "";
 
-    if (req.body.ai_prompt_comment) {
-      // Fetch art suggestion from Harvard API
-      ai_comment = await getArtSuggestion(req.body.ai_prompt_comment);
+    // Process AI comment if ai_prompt_comment is provided
+    if (req.body.ai_prompt_comment && req.body.ai_prompt_comment.trim()) {
+      try {
+        console.log("🎨 Generating AI comment with prompt:", req.body.ai_prompt_comment);
+        ai_comment = await getArtSuggestion(req.body.ai_prompt_comment);
+        console.log("✅ AI comment generated:", ai_comment);
+      } catch (error) {
+        console.error("❌ Error generating AI comment:", error);
+        ai_comment = "Sorry, I couldn't generate an AI comment at this time.";
+      }
     }
 
     const newComment = await Comment.create({
       description: req.body.description,
-      commentBy: req.user.user_id,
-      commentTo: req.body.commentTo || null,
+      commentBy: req.user.user_id,  // This is the cognitoId from JWT
+      commentTo: req.body.commentTo,
       ai_prompt_comment: req.body.ai_prompt_comment || "",
       ai_comment
     });
 
-    res.status(201).json(newComment);
+    // Fetch the created comment with associations for response
+    const createdComment = await Comment.findByPk(newComment.id, {
+      include: [
+        {
+          model: Note,
+          as: "Note",
+          attributes: ["note_title", "id"]
+        }
+      ]
+    });
+
+    // Manually attach user information
+    const user = await User.findOne({
+      where: { cognitoId: newComment.commentBy },
+      attributes: ["username", "cognitoId"]
+    });
+    createdComment.dataValues.User = user;
+
+    res.status(201).json(createdComment);
   }),
 ];
 
 // ✅ Get comment by ID
 exports.getCommentById = asyncHandler(async (req, res) => {
-  const comment = await Comment.findByPk(req.params.id);
+  const comment = await Comment.findByPk(req.params.id, {
+    include: [
+      {
+        model: Note,
+        as: "Note",
+        attributes: ["note_title", "id"]
+      }
+    ]
+  });
   if (!comment) {
     return res.status(404).json({ error: "Comment not found" });
   }
+
+  // Manually attach user information
+  const user = await User.findOne({
+    where: { cognitoId: comment.commentBy },
+    attributes: ["username", "cognitoId"]
+  });
+  comment.dataValues.User = user;
+
   res.status(200).json(comment);
 });
 
@@ -82,17 +143,50 @@ exports.updateComment = [
       return res.status(404).json({ error: "Comment not found" });
     }
 
+    // Check if user owns this comment (using cognitoId)
     if (comment.commentBy !== req.user.user_id) {
       return res.status(403).json({ error: "You are not allowed to update this comment" });
+    }
+
+    // Process AI comment if ai_prompt_comment is updated
+    let ai_comment = comment.ai_comment;
+    if (req.body.ai_prompt_comment && req.body.ai_prompt_comment.trim() && 
+        req.body.ai_prompt_comment !== comment.ai_prompt_comment) {
+      try {
+        console.log("🎨 Regenerating AI comment with new prompt:", req.body.ai_prompt_comment);
+        ai_comment = await getArtSuggestion(req.body.ai_prompt_comment);
+        console.log("✅ New AI comment generated:", ai_comment);
+      } catch (error) {
+        console.error("❌ Error regenerating AI comment:", error);
+        ai_comment = "Sorry, I couldn't generate an AI comment at this time.";
+      }
     }
 
     await comment.update({
       description: req.body.description,
       ai_prompt_comment: req.body.ai_prompt_comment || comment.ai_prompt_comment,
-      ai_comment: req.body.ai_comment || comment.ai_comment,
+      ai_comment: ai_comment,
     });
 
-    res.status(200).json(comment);
+    // Return updated comment with associations
+    const updatedComment = await Comment.findByPk(req.params.id, {
+      include: [
+        {
+          model: Note,
+          as: "Note",
+          attributes: ["note_title", "id"]
+        }
+      ]
+    });
+
+    // Manually attach user information
+    const user = await User.findOne({
+      where: { cognitoId: updatedComment.commentBy },
+      attributes: ["username", "cognitoId"]
+    });
+    updatedComment.dataValues.User = user;
+
+    res.status(200).json(updatedComment);
   }),
 ];
 

@@ -32,10 +32,23 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
   const notes = await Note.findAll({
     where,
     include: [
-      { model: Comment, as: "Comments", attributes: ["id", "description", "createdAt", "commentBy", "ai_comment"] },
+      { model: Comment, as: "Comments", attributes: ["id", "description", "createdAt", "commentBy", "ai_comment", "ai_prompt_comment"] },
       { model: User, as: "User", attributes: ["id", "username"] }
     ]
   });
+
+  // Manually attach user information to comments based on cognitoId
+  for (let note of notes) {
+    if (note.Comments && note.Comments.length > 0) {
+      for (let comment of note.Comments) {
+        const user = await User.findOne({
+          where: { cognitoId: comment.commentBy },
+          attributes: ["username", "cognitoId"]
+        });
+        comment.dataValues.User = user;
+      }
+    }
+  }
 
   res.status(200).json(notes);
 });

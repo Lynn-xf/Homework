@@ -7,11 +7,12 @@ const Comment = require("./comment");
 User.hasMany(Note, { foreignKey: "ownerId" });
 Note.belongsTo(User, { foreignKey: "ownerId" });
 
-Note.hasMany(Comment, { foreignKey: "commentTo", as: "Comments" });
-Comment.belongsTo(Note, { foreignKey: "commentTo", as: "Note" });
+Note.hasMany(Comment, { foreignKey: "commentTo", as: "Comments", constraints: false });
+Comment.belongsTo(Note, { foreignKey: "commentTo", as: "Note", constraints: false });
 
-User.hasMany(Comment, { foreignKey: "commentBy", as: "Comments" });
-Comment.belongsTo(User, { foreignKey: "commentBy", as: "User" });
+// Note: Comments reference User by cognitoId but we don't use Sequelize associations
+// for this relationship because cognitoId is not the primary key.
+// Instead, we'll handle this manually in controllers with includes.
 
 sequelize.sync({ alter: true }) // auto create/update tables
   .then(() => console.log("✅ Tables synced"))

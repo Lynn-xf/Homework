@@ -38,10 +38,23 @@ function updateAuthUI(){
 
   const navUser = document.getElementById("navUser");
   if(payload){
-    document.getElementById("whoami").textContent = `id: ${payload.user_id ?? payload.id} | admin: ${payload.is_admin ? "yes":"no"}`;
-    document.getElementById("deleteAllNotesBtn").classList.toggle("hidden", !payload.is_admin);
+    // For Cognito JWT tokens, use the correct field names
+    const userId = payload.sub || payload.user_id || payload.id;
+    const username = payload["cognito:username"] || payload.username || userId;
+    
+    // Check admin status from Cognito groups
+    let isAdmin = false;
+    if (payload["cognito:groups"] && Array.isArray(payload["cognito:groups"])) {
+      isAdmin = payload["cognito:groups"].includes("admin");
+    }
+    
+    console.log("🔍 JWT Payload:", payload);
+    console.log(`👤 Parsed user - ID: ${userId}, Username: ${username}, Admin: ${isAdmin}`);
+    
+    document.getElementById("whoami").textContent = `id: ${userId} | user: ${username} | admin: ${isAdmin ? "yes":"no"}`;
+    document.getElementById("deleteAllNotesBtn").classList.toggle("hidden", !isAdmin);
     navUser.classList.remove("hidden");
-    navUser.textContent = `User ${payload.user_id ?? payload.id}`;
+    navUser.textContent = `User ${username}`;
   } else {
     document.getElementById("whoami").textContent = "";
     document.getElementById("deleteAllNotesBtn").classList.add("hidden");
@@ -157,8 +170,15 @@ async function renderNotes(data){
   if(!Array.isArray(data)){ container.textContent = JSON.stringify(data, null, 2); return; }
   const token = getToken();
   const payload = parseJwt(token);
-  const myId = payload ? (payload.user_id ?? payload.id) : null;
-  const isAdmin = payload ? !!payload.is_admin : false;
+  
+  // Fixed: Use Cognito JWT structure for user ID and admin status
+  const myId = payload ? (payload.sub || payload.user_id || payload.id) : null;
+  let isAdmin = false;
+  if (payload && payload["cognito:groups"] && Array.isArray(payload["cognito:groups"])) {
+    isAdmin = payload["cognito:groups"].includes("admin");
+  }
+
+  console.log("🔍 Render Notes - User ID:", myId, "Admin:", isAdmin, "Groups:", payload ? payload["cognito:groups"] : "none");
 
   data.forEach(note=>{
     const card = document.createElement("div");

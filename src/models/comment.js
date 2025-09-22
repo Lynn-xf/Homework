@@ -21,12 +21,12 @@ const Comment = sequelize.define("Comment", {
     allowNull: true,
   },
   commentBy: { 
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING,  // Changed to STRING to store cognitoId
     allowNull: false,
   },
   commentTo: { 
-    type: DataTypes.INTEGER,
-    allowNull: true, 
+    type: DataTypes.INTEGER,  // This references note.id which is INTEGER
+    allowNull: false,  // Changed to false since every comment should reference a note
   }
 }, {
   tableName: "comments",
