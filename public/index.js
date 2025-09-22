@@ -187,7 +187,14 @@ async function renderNotes(data){
     const imgWrap = document.createElement("div");
     imgWrap.className = "note-imgwrap";
     const img = document.createElement("img");
-    if(note.note_picture) img.src = `/images/${note.note_picture}`;
+    if(note.presignedUrl) {
+      img.src = note.presignedUrl;
+      console.log("🔍 Using S3 image for note:", note.id);
+    } else {
+      // No S3 image available - legacy note or missing image
+      img.style.display = 'none';
+      console.log("🔍 No S3 image for note:", note.id, "note_picture:", note.note_picture);
+    }
     imgWrap.appendChild(img);
 
     const title = document.createElement("h3");

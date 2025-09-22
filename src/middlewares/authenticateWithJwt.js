@@ -13,12 +13,16 @@ const idVerifier = jwt.CognitoJwtVerifier.create({
 
 async function authenticateWithJwt(req, res, next) {
   try {
+    console.log("🔍 JWT middleware called for:", req.method, req.path);
     const authHeader = req.headers["authorization"];
+    console.log("🔍 Auth header:", authHeader ? "Present" : "Missing");
+    console.log("🔍 Full auth header value:", authHeader);
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       console.log("❌ No authorization header or invalid format");
       return res.status(401).json({ error: "No token provided" });
     }
     const token = authHeader.split(" ")[1];
+    console.log("🔍 Extracted token:", token ? token.substring(0, 50) + "..." : "null");
 
     // Verify the token (ID token recommended for user info)
     const payload = await idVerifier.verify(token);
@@ -42,7 +46,6 @@ async function authenticateWithJwt(req, res, next) {
       username,
       is_admin: isAdmin,
       id: user_id, // For compatibility with existing code
-      // You can add more fields as needed
     };
 
     next();

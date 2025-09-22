@@ -1,10 +1,9 @@
 const { Note, Comment, User } = require("../models");
-const { generateSummaryFromImage } = require("../utils/ollama");
+const { generateSummaryFromImage, generateSummaryFromS3 } = require("../utils/ollama");
+const { uploadNoteImage, deleteNoteImage } = require("../utils/s3Helper");
 const asyncHandler = require("express-async-handler");
 const { body, validationResult } = require("express-validator");
 const { Op } = require("sequelize");
-const path = require("path");
-const fs = require("fs");
 
 // ✅ Validation rules for creating notes
 const noteValidator = () => [
@@ -37,8 +36,22 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
     ]
   });
 
-  // Manually attach user information to comments based on cognitoId
+  // Manually attach user information to comments based on cognitoId and generate presigned URLs for S3 images
+  const { getNoteImageUrl, isS3Image } = require("../utils/s3Helper");
+  
   for (let note of notes) {
+    // Generate presigned URL for S3 images
+    if (note.note_picture && isS3Image(note.note_picture)) {
+      try {
+        const presignedUrl = await getNoteImageUrl(note.note_picture);
+        note.dataValues.presignedUrl = presignedUrl;
+      } catch (error) {
+        console.error("Error generating presigned URL for note", note.id, ":", error);
+        note.dataValues.presignedUrl = null;
+      }
+    }
+
+    // Manually attach user information to comments based on cognitoId
     if (note.Comments && note.Comments.length > 0) {
       for (let comment of note.Comments) {
         const user = await User.findOne({
@@ -64,47 +77,53 @@ exports.createNote = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Note picture is required" });
   }
 
+  console.log("🔍 req.user in createNote:", req.user);
   const userId = req.user.user_id;
+  console.log("🔍 userId extracted:", userId);
   if (!userId) {
+    console.log("❌ No userId found, req.user:", req.user);
     return res.status(401).json({ error: "Authentication required" });
   }
-
-  const noteFile = req.files.note_picture;
-  // Ensure upload directory exists
-  const uploadDir = path.join(__dirname, "../utils/images");
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-  }
-
-  // Save to /utils/images/
-  const uploadPath = path.join(uploadDir, noteFile.name);
-  await noteFile.mv(uploadPath);
-  console.log("File uploaded to:", uploadPath);
 
   if (!req.body.note_title) {
     return res.status(400).json({ error: "Note title is required" });
   }
 
+  const noteFile = req.files.note_picture;
 
+  try {
+    const s3UploadResult = await uploadNoteImage(noteFile, userId);
 
-  // Create note immediately with placeholder summary
-  const newNote = await Note.create({
-    note_title: req.body.note_title,
-    note_picture: noteFile.name,
-    ai_summary: "Processing...", // placeholder
-    time: req.body.time || null,
-    owner: userId,
-  });
+    const newNote = await Note.create({
+      note_title: req.body.note_title,
+      note_picture: s3UploadResult.s3Key,
+      ai_summary: "Processing...",
+      time: req.body.time || null,
+      owner: userId,
+    });
 
-  // Fire off AI summary generation in background
-  generateSummaryFromImage(uploadPath)
-    .then((summary) => newNote.update({ ai_summary: summary }))
-    .catch((err) => console.error("Error updating AI summary:", err));
+    // Fire off AI summary generation in background for S3 image
+    (async () => {
+      try {
+        const summary = await generateSummaryFromS3(s3UploadResult.s3Key);
+        await newNote.update({ ai_summary: summary });
+        console.log("AI summary updated for note:", newNote.id);
+      } catch (aiError) {
+        console.error("Error updating AI summary:", aiError);
+        await newNote.update({ ai_summary: "AI summary could not be generated." });
+      }
+    })();
 
-    console.log("req.body:", req.body);
-    console.log("req.user:", req.user);
-  // Respond immediately, don't wait for AI
-  res.status(201).json(newNote);
+    const responseNote = {
+      ...newNote.toJSON(),
+      presignedUrl: s3UploadResult.presignedUrl
+    };
+
+    res.status(201).json(responseNote);
+  } catch (error) {
+    console.error("Error uploading file to S3:", error);
+    res.status(500).json({ error: "Failed to upload file to S3: " + error.message });
+  }
 });
 
 
@@ -135,6 +154,19 @@ exports.getNoteById = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
+  // Generate presigned URL for S3 images
+  const { getNoteImageUrl, isS3Image } = require("../utils/s3Helper");
+  
+  if (note.note_picture && isS3Image(note.note_picture)) {
+    try {
+      const presignedUrl = await getNoteImageUrl(note.note_picture);
+      note.dataValues.presignedUrl = presignedUrl;
+    } catch (error) {
+      console.error("Error generating presigned URL for note", note.id, ":", error);
+      note.dataValues.presignedUrl = null;
+    }
+  }
+
   res.status(200).json(note);
 });
 
@@ -146,7 +178,7 @@ exports.updateNote = [
       return res.status(404).json({ error: "Note not found" });
     }
 
-    if (note.owner !== req.user.user_id) {
+    if (note.owner !== req.user.user_id && !req.user.is_admin) {
       return res.status(403).json({ error: "You are not allowed to modify this note" });
     }
 
@@ -168,8 +200,20 @@ exports.deleteNote = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
-  if (note.owner !== req.user.user_id) {
+  if (note.owner !== req.user.user_id && !req.user.is_admin) {
     return res.status(403).json({ error: "You are not allowed to delete this note" });
+  }
+
+  const { isS3Image } = require("../utils/s3Helper");
+  
+  // Delete S3 image if it exists
+  if (note.note_picture && isS3Image(note.note_picture)) {
+    try {
+      await deleteNoteImage(note.note_picture);
+      console.log("Deleted S3 image:", note.note_picture);
+    } catch (error) {
+      console.error("Error deleting S3 image:", error);
+    }
   }
 
   await note.destroy();
