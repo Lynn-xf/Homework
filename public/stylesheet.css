@@ -58,10 +58,10 @@ button:hover{opacity:0.95}
   .controls{justify-content:flex-end}
 }
 
-/* New auth grid: make register/login half-height/narrower */
+/* New auth grid: make register/confirm/login three columns */
 .auth-grid{
   display:grid;
-  grid-template-columns: 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr 1fr auto;
   gap:12px;
   align-items:start;
 }

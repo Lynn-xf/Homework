@@ -72,6 +72,8 @@ exports.createNote = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Note title is required" });
   }
 
+
+
   // Create note immediately with placeholder summary
   const newNote = await Note.create({
     note_title: req.body.note_title,

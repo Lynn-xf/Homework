@@ -18,5 +18,5 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-# Use npm start (ensure "start" script in package.json points to your server)
+# Use npm start ("start" script in package.json points to server)
 CMD ["npm", "start"]

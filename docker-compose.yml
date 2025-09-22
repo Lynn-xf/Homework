@@ -1,20 +1,4 @@
-version: "3.8"
 services:
-  db:
-    image: mariadb:10.11
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpass
-      MYSQL_DATABASE: ${DB_NAME}
-      MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - db_data:/var/lib/mysql
-    ports:
-      - "3307:3306"
-    networks:
-      - homework_net
-
   ollama1:
     image: ollama/ollama:latest
     container_name: ollama1
@@ -22,8 +6,6 @@ services:
       - "11434:11434"
     volumes:
       - ollama_models:/root/.ollama   # persist models
-    networks:
-      - homework_net
 
   ollama2:
     image: ollama/ollama:latest
@@ -32,8 +14,6 @@ services:
       - "11435:11434" # map container 11434 to host 11435
     volumes:
       - ollama_models:/root/.ollama   # persist models
-    networks:
-      - homework_net
 
   app:
     build: .
@@ -41,7 +21,7 @@ services:
     environment:
       PORT: ${PORT}
       JWT_SECRET: ${JWT_SECRET}
-      DB_HOST: db
+      DB_HOST: 172.31.120.176
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -53,16 +33,10 @@ services:
     volumes:
       - ./src/utils/images:/usr/src/app/src/utils/images
     depends_on:
-      - db
       - ollama1
       - ollama2
-    networks:
-      - homework_net
 
 volumes:
-  db_data:
   ollama_models:
 
-networks:
-  homework_net:
-    driver: bridge
+
