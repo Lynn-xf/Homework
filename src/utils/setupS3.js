@@ -37,6 +37,24 @@ async function generatePresignedUrl(key, expiresIn = 3600) {
   return await getSignedUrl(s3Client, command, { expiresIn });
 }
 
+async function generatePresignedUploadUrl(fileName, userId, expiresIn = 3600) {
+  const timestamp = Date.now();
+  const s3Key = `${HOMEWORK_IMAGES_PREFIX}user-${userId}/${timestamp}-${fileName}`;
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: s3Key,
+  });
+
+  const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn });
+
+  return {
+    presignedUrl,
+    s3Key,
+    fileName
+  };
+}
+
 async function deleteHomeworkImage(key) {
   const command = new DeleteObjectCommand({
     Bucket: BUCKET_NAME,
@@ -52,5 +70,6 @@ module.exports = {
   HOMEWORK_IMAGES_PREFIX,
   uploadHomeworkImage,
   generatePresignedUrl,
+  generatePresignedUploadUrl,
   deleteHomeworkImage,
 };

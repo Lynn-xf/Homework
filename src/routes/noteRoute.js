@@ -18,4 +18,8 @@ router.route('/:id')
     .put(controller.updateNote) // Update a note by ID
     .delete(controller.deleteNote); // Delete a note by ID
 
+// S3 Presigned URL endpoints
+router.post('/presigned/upload', authMiddleware, controller.getUploadPresignedUrl);
+router.get('/presigned/download/:id', authMiddleware, controller.getDownloadPresignedUrl);
+
 module.exports = router;

@@ -265,3 +265,70 @@ exports.deleteNote = asyncHandler(async (req, res) => {
   res.status(200).json({ message: "Note deleted successfully" });
 });
 
+// ✅ Get presigned URL for direct S3 upload
+exports.getUploadPresignedUrl = asyncHandler(async (req, res) => {
+  const { fileName } = req.body;
+  
+  if (!fileName) {
+    return res.status(400).json({ error: "fileName is required" });
+  }
+
+  const userId = req.user.id || req.user.user_id;
+  
+  try {
+    const { generatePresignedUploadUrl } = require("../utils/setupS3");
+    const result = await generatePresignedUploadUrl(fileName, userId);
+    
+    res.status(200).json({
+      presignedUrl: result.presignedUrl,
+      s3Key: result.s3Key,
+      fileName: result.fileName,
+      message: "Use this URL to upload directly to S3"
+    });
+  } catch (error) {
+    console.error("Error generating presigned upload URL:", error);
+    res.status(500).json({ error: "Failed to generate presigned upload URL" });
+  }
+});
+
+// ✅ Get presigned URL for direct S3 download
+exports.getDownloadPresignedUrl = asyncHandler(async (req, res) => {
+  const noteId = req.params.id;
+  const userId = req.user.id || req.user.user_id;
+  
+  try {
+    // Find the note and verify ownership
+    const note = await Note.findByPk(noteId);
+    
+    if (!note) {
+      return res.status(404).json({ error: "Note not found" });
+    }
+
+    // Check ownership or admin access
+    const isAdmin = req.user.is_admin;
+    if (!isAdmin && note.ownerId != userId) {
+      return res.status(403).json({ error: "You can only access your own notes" });
+    }
+
+    const { isS3Image } = require("../utils/s3Helper");
+    
+    if (!note.note_picture || !isS3Image(note.note_picture)) {
+      return res.status(400).json({ error: "Note does not have an S3 image" });
+    }
+
+    const { generatePresignedUrl } = require("../utils/setupS3");
+    const presignedUrl = await generatePresignedUrl(note.note_picture, 3600); // 1 hour expiry
+    
+    res.status(200).json({
+      presignedUrl,
+      s3Key: note.note_picture,
+      noteId: note.id,
+      noteTitle: note.note_title,
+      message: "Use this URL to download directly from S3"
+    });
+  } catch (error) {
+    console.error("Error generating presigned download URL:", error);
+    res.status(500).json({ error: "Failed to generate presigned download URL" });
+  }
+});
+
