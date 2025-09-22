@@ -19,7 +19,7 @@ const Note = sequelize.define("Note", {
     type: DataTypes.STRING,
     allowNull: true, // optional
   },
-
+  // ownerId will be auto-created by the association as INTEGER foreign key to users.id
 }, {
   tableName: "notes",
   timestamps: false, // disable createdAt/updatedAt unless you need them

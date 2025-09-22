@@ -17,8 +17,6 @@ const noteValidator = () => [
 ];
 
 // ✅ Get all notes (with optional filters)
-
-// ✅ Get all notes (with optional filters)
 exports.getAllNotes = asyncHandler(async (req, res) => {
   const { note_title, ai_summary, time, owner } = req.query;
 
@@ -26,17 +24,31 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
   if (note_title) where.note_title = { [Op.like]: `%${note_title}%` };
   if (ai_summary) where.ai_summary = { [Op.like]: `%${ai_summary}%` };
   if (time) where.time = time;
-  if (owner) where.owner = owner;
+  if (owner) where.ownerId = owner;
+
+  // Normal users can only see their own notes, admins can see all notes
+  if (!req.user.is_admin) {
+    // Look up the user by their Cognito ID to get the database user ID
+    const user = await User.findOne({
+      where: { cognitoId: req.user.user_id }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    where.ownerId = user.id; // Use the database user ID, not the Cognito ID
+  }
 
   const notes = await Note.findAll({
     where,
     include: [
       { model: Comment, as: "Comments", attributes: ["id", "description", "createdAt", "commentBy", "ai_comment", "ai_prompt_comment"] },
-      { model: User, as: "User", attributes: ["id", "username"] }
+      { model: User, as: "Owner", attributes: ["id", "username", "cognitoId"] }
     ]
   });
 
-  // Manually attach user information to comments based on cognitoId and generate presigned URLs for S3 images
+  // Generate presigned URLs for S3 images and manually attach user information to comments based on cognitoId
   const { getNoteImageUrl, isS3Image } = require("../utils/s3Helper");
   
   for (let note of notes) {
@@ -92,6 +104,15 @@ exports.createNote = asyncHandler(async (req, res) => {
   const noteFile = req.files.note_picture;
 
   try {
+    // Look up the user by their Cognito ID to get the database user ID
+    const user = await User.findOne({
+      where: { cognitoId: userId }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found in database" });
+    }
+
     const s3UploadResult = await uploadNoteImage(noteFile, userId);
 
     const newNote = await Note.create({
@@ -99,7 +120,7 @@ exports.createNote = asyncHandler(async (req, res) => {
       note_picture: s3UploadResult.s3Key,
       ai_summary: "Processing...",
       time: req.body.time || null,
-      owner: userId,
+      ownerId: user.id, // Use the database user ID, not the Cognito ID
     });
 
     // Fire off AI summary generation in background for S3 image
@@ -140,13 +161,12 @@ exports.deleteAllNotes = asyncHandler(async (req, res) => {
   }
 });
 
-
 // ✅ Get note by ID
 exports.getNoteById = asyncHandler(async (req, res) => {
   const note = await Note.findByPk(req.params.id, {
     include: [
       { model: Comment, as: "Comments" },
-      { model: User, as: "User", attributes: ["id", "username"] }
+      { model: User, as: "Owner", attributes: ["id", "username", "cognitoId"] }
     ]
   });
 
@@ -178,8 +198,19 @@ exports.updateNote = [
       return res.status(404).json({ error: "Note not found" });
     }
 
-    if (note.owner !== req.user.user_id && !req.user.is_admin) {
-      return res.status(403).json({ error: "You are not allowed to modify this note" });
+    // Check ownership - Look up the user by their Cognito ID to get the database user ID
+    if (!req.user.is_admin) {
+      const user = await User.findOne({
+        where: { cognitoId: req.user.user_id }
+      });
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      if (note.ownerId !== user.id) {
+        return res.status(403).json({ error: "You are not allowed to modify this note" });
+      }
     }
 
     await note.update({
@@ -200,7 +231,7 @@ exports.deleteNote = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
-  if (note.owner !== req.user.user_id && !req.user.is_admin) {
+  if (note.ownerId !== req.user.user_id && !req.user.is_admin) {
     return res.status(403).json({ error: "You are not allowed to delete this note" });
   }
 
