@@ -113,6 +113,36 @@ document.getElementById("loginForm").addEventListener("submit", async (e)=>{
 
 document.getElementById("logoutBtn").addEventListener("click", ()=>{ setToken(null); updateAuthUI(); });
 
+// Google Sign-In
+document.getElementById("googleSignInBtn").addEventListener("click", async ()=>{
+  try {
+    // Initialize Google Sign-In with your client ID
+    const GOOGLE_CLIENT_ID = "420352551426-av61nol3qq9mjmai42atnfus4pin6679.apps.googleusercontent.com"; // Replace with your actual Google Client ID from Google Cloud Console
+    
+    // Use Google Identity Services
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: (response) => {
+        console.log("Google Sign-In successful");
+        console.log("Google ID Token:", response.credential);
+        
+        // Store the Google ID token (same as Cognito token)
+        setToken(response.credential);
+        document.getElementById("loginResult").textContent = "Signed in with Google successfully!";
+        updateAuthUI();
+        refreshNotes();
+      }
+    });
+    
+    // Prompt for sign-in
+    google.accounts.id.prompt();
+    
+  } catch (error) {
+    console.error("Google Sign-In error:", error);
+    document.getElementById("loginResult").textContent = "Google Sign-In failed: " + error.message;
+  }
+});
+
 // nav link behavior
 document.getElementById("navHome").addEventListener("click", (e)=>{ e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); });
 document.getElementById("navLogin").addEventListener("click", (e)=>{ e.preventDefault(); document.getElementById("authSection").classList.remove("hidden"); document.querySelector("#loginForm input").focus(); });

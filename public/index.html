@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Homework API</title>
   <link rel="stylesheet" href="./stylesheet.css" />
+  <!-- Google Sign-In -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     .topnav{
       display:flex;
@@ -66,8 +68,10 @@
           <form id="loginForm" class="compact-form">
             <input name="username" placeholder="username" required />
             <input name="password" type="password" placeholder="password" required />
-            <button type="submit" class="small-btn">Login</button>
+            <button type="submit" class="small-btn">Login with Cognito</button>
           </form>
+          <div style="margin: 10px 0; text-align: center;">-- OR --</div>
+          <button id="googleSignInBtn" class="small-btn" style="background: #4285f4; color: white;">Sign in with Google</button>
           <div id="loginResult" class="result"></div>
         </div>
 

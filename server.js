@@ -1,9 +1,10 @@
 const express = require('express');
 const cors = require('cors');
+const https = require('https');
+const fs = require('fs');
 require('dotenv').config();
 const fileUpload = require("express-fileupload");
 const path = require("path");
-const fs = require("fs");
 const { pullModel } = require("./src/utils/ollama");
 
 const app = express();
@@ -40,10 +41,27 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 
+// Start HTTP server
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`HTTP Server is running on http://localhost:${PORT}`);
 });
+
+// Start HTTPS server
+try {
+  const httpsOptions = {
+    key: fs.readFileSync(path.join(__dirname, 'ssl', 'server.key')),
+    cert: fs.readFileSync(path.join(__dirname, 'ssl', 'server.cert'))
+  };
+  
+  https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
+    console.log(`HTTPS Server is running on https://localhost:${HTTPS_PORT}`);
+  });
+} catch (error) {
+  console.log('HTTPS setup failed:', error.message);
+  console.log('Only HTTP server is running');
+}
 
 
 module.exports = app;

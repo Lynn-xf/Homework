@@ -27,9 +27,12 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_PORT: 3306
       HARVARD_API_KEY: ${HARVARD_API_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     ports:
       - "80:3000"
       - "${PORT}:3000"
+      - "443:3443"
+      - "3443:3443"
     volumes:
       - ./src/utils/images:/usr/src/app/src/utils/images
     depends_on:

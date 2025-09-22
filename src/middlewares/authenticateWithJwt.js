@@ -1,5 +1,6 @@
 require("dotenv").config();
 const jwt = require("aws-jwt-verify");
+const { User } = require('../models');
 
 const userPoolId = process.env.COGNITO_USER_POOL_ID || "ap-southeast-2_I07bnwdFy"; // Obtain from the AWS console
 const clientId = process.env.COGNITO_CLIENT_ID || "6d9099qdimktn8bbodt749e2hs";  // Obtain from the AWS console
@@ -39,6 +40,23 @@ async function authenticateWithJwt(req, res, next) {
     }
     
     console.log(`👤 User authenticated - ID: ${user_id}, Username: ${username}, Admin: ${isAdmin}, Groups: ${JSON.stringify(payload["cognito:groups"] || [])}`);
+
+    // Create or find Cognito user in database to satisfy foreign key constraint
+    try {
+      await User.findOrCreate({
+        where: { cognitoId: user_id }, // Use cognitoId for Cognito users
+        defaults: {
+          username: username,
+          password: null, // Cognito handles authentication
+          cognitoId: user_id,
+          is_admin: isAdmin
+        }
+      });
+      console.log(`✅ Cognito user ensured in database: ${username} (${user_id})`);
+    } catch (dbError) {
+      console.error("❌ Failed to create/find Cognito user in database:", dbError.message);
+      // Continue anyway - might work if user already exists
+    }
 
     // Attach user info to request
     req.user = {

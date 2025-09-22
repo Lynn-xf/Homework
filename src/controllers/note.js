@@ -28,16 +28,21 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
 
   // Normal users can only see their own notes, admins can see all notes
   if (!req.user.is_admin) {
-    // Look up the user by their Cognito ID to get the database user ID
-    const user = await User.findOne({
-      where: { cognitoId: req.user.user_id }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    if (req.user.auth_provider === 'google') {
+      // For Google users, use their Google ID directly (no database lookup)
+      where.ownerId = req.user.user_id;
+    } else {
+      // For Cognito users, look up the user in database (existing flow)
+      const user = await User.findOne({
+        where: { cognitoId: req.user.user_id }
+      });
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      where.ownerId = user.id; // Use the database user ID
     }
-    
-    where.ownerId = user.id; // Use the database user ID, not the Cognito ID
   }
 
   const notes = await Note.findAll({
@@ -104,13 +109,22 @@ exports.createNote = asyncHandler(async (req, res) => {
   const noteFile = req.files.note_picture;
 
   try {
-    // Look up the user by their Cognito ID to get the database user ID
-    const user = await User.findOne({
-      where: { cognitoId: userId }
-    });
+    let ownerId;
+    
+    if (req.user.auth_provider === 'google') {
+      // For Google users, use their Google ID directly
+      ownerId = userId;
+    } else {
+      // For Cognito users, look up the user in database (existing flow)
+      const user = await User.findOne({
+        where: { cognitoId: userId }
+      });
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found in database" });
+      if (!user) {
+        return res.status(404).json({ error: "User not found in database" });
+      }
+      
+      ownerId = user.id;
     }
 
     const s3UploadResult = await uploadNoteImage(noteFile, userId);
@@ -120,7 +134,7 @@ exports.createNote = asyncHandler(async (req, res) => {
       note_picture: s3UploadResult.s3Key,
       ai_summary: "Processing...",
       time: req.body.time || null,
-      ownerId: user.id, // Use the database user ID, not the Cognito ID
+      ownerId: ownerId,
     });
 
     // Fire off AI summary generation in background for S3 image
