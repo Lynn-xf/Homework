@@ -1,28 +1,39 @@
-const mongoose = require("mongoose");
+const { DataTypes } = require("sequelize");
+const sequelize = require("../utils/mariadb"); // your Sequelize instance
 
-const commentSchema = new mongoose.Schema({
-    description: {
-        type: String,
-        required: true,
-    },
-    commentBy: {
-        type: mongoose.Schema.ObjectId,
-        ref: "User",
-        required: true,
-    },
-    commentTo: {
-        type: mongoose.Schema.ObjectId,
-        ref: "Note",
-        required: true,
-    },
-    ai_prompt_comment: {
-        type: String,
-        optional: true,
-    },
-    ai_comment:{
-        type: String,
-        optional: true,
-    }
+const Comment = sequelize.define("Comment", {
+  id: {
+    type: DataTypes.UUID,
+    defaultValue: DataTypes.UUIDV4,
+    primaryKey: true,
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
+  ai_prompt_comment: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  ai_comment: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  commentBy: { 
+    type: DataTypes.STRING,  // Changed to STRING to store cognitoId
+    allowNull: false,
+  },
+  commentTo: { 
+    type: DataTypes.INTEGER,  // This references note.id which is INTEGER
+    allowNull: false,  // Changed to false since every comment should reference a note
+  }
+}, {
+  tableName: "comments",
+  timestamps: true, // adds createdAt, updatedAt
 });
 
-module.exports = mongoose.model("Comment", commentSchema);
+// Associations
+// Comment belongs to a User (commentBy)
+
+module.exports = Comment;

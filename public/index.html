@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Homework API</title>
+  <link rel="stylesheet" href="./stylesheet.css" />
+  <!-- Google Sign-In -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    .topnav{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:8px 12px;
+      background:transparent;
+    }
+    .topnav .nav-left{flex:1}
+    .topnav a{color:inherit; text-decoration:none; padding:6px 8px; border-radius:6px}
+    .topnav a:hover{background:rgba(0,0,0,0.04)}
+    .topnav .nav-right{display:flex; gap:8px; align-items:center}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <nav class="topnav">
+    <div class="nav-left">
+      <a href="#" id="navHome">Home</a>
+    </div>
+    <div class="nav-right">
+      <a href="#" id="navLogin">Login</a>
+      <a href="#" id="navRegister">Register</a>
+      <span id="navUser" class="hidden"></span>
+      <button id="navLogout" class="small-btn hidden">Logout</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <h1>Homework REST API</h1>
+
+    <section class="card" id="authSection">
+      <div class="auth-grid">
+        <div class="auth-column">
+          <h2>Register</h2>
+          <form id="registerForm" class="compact-form">
+            <input name="username" placeholder="username" required />
+            <input name="email" type="email" placeholder="email" required />
+            <input name="password" type="password" placeholder="password" required />
+            <label class="small-label"><input type="checkbox" name="is_admin" /> is admin</label>
+            <button type="submit" class="small-btn">Register</button>
+          </form>
+          <div id="registerResult" class="result"></div>
+        </div>
+
+        <div class="auth-column">
+          <h2>Confirm Registration</h2>
+          <form id="confirmForm" class="compact-form">
+            <input name="username" placeholder="username" required />
+            <input name="confirmationCode" placeholder="confirmation code" required />
+            <label class="small-label"><input type="checkbox" name="is_admin" /> is admin</label>
+            <button type="submit" class="small-btn">Confirm</button>
+          </form>
+          <div id="confirmResult" class="result"></div>
+        </div>
+
+        <div class="auth-column">
+          <h2>Login</h2>
+          <form id="loginForm" class="compact-form">
+            <input name="username" placeholder="username" required />
+            <input name="password" type="password" placeholder="password" required />
+            <button type="submit" class="small-btn">Login with Cognito</button>
+          </form>
+          <div style="margin: 10px 0; text-align: center;">-- OR --</div>
+          <button id="googleSignInBtn" class="small-btn" style="background: #4285f4; color: white;">Sign in with Google</button>
+          <div id="loginResult" class="result"></div>
+        </div>
+
+        <div id="userInfo" class="hidden auth-info">
+          <h3>User</h3>
+          <div id="whoami" class="result"></div>
+          <button id="logoutBtn" class="small-btn">Logout</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="actionsSection">
+      <div class="controls-row">
+        <input id="searchInput" class="search-input" placeholder="Search notes by title..." />
+        <button id="searchBtn" class="small-btn">Search <span class="icon">🔍</span></button>
+        <button id="refreshNotes" class="small-btn">Refresh <span class="icon">⟳</span></button>
+        <button id="deleteAllNotesBtn" class="small-btn hidden">Delete All Notes (admin)</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Create Note</h2>
+      <form id="createNoteForm">
+        <input name="note_title" placeholder="Title" required />
+        <input name="time" placeholder="Time (ISO)" />
+        <input name="note_picture" type="file" accept="image/*" multiple required />
+        <button type="submit">Create Note(s)</button>
+      </form>
+      <div id="createNoteResult" class="result"></div>
+    </section>
+
+    <section class="card">
+      <h2>Notes</h2>
+      <div id="notesGrid" class="notes-grid"></div>
+    </section>
+
+    <footer class="card small">
+      <small>UI and API share same origin. Token stored in localStorage.</small>
+    </footer>
+  </main>
+
+  <script src="./index.js"></script>
+</body>

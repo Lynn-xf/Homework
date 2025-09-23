@@ -11,15 +11,28 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.891.0",
+    "@aws-sdk/client-s3": "^3.891.0",
+    "@aws-sdk/s3-request-presigner": "^3.891.0",
+    "aws-jwt-verify": "^5.1.0",
+    "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
+    "express-fileupload": "^1.5.2",
     "express-validator": "^7.2.1",
+    "google-auth-library": "^10.3.0",
     "jsonwebtoken": "^9.0.2",
+    "mariadb": "^3.4.5",
     "mongodb": "^6.18.0",
     "mongoose": "^8.18.0",
-    "router": "^2.2.0"
+    "node-fetch": "^3.3.2",
+    "ollama": "^0.5.17",
+    "ollama-node": "^0.1.28",
+    "router": "^2.2.0",
+    "sequelize": "^6.37.7",
+    "uuid": "^11.1.0"
   }
 }

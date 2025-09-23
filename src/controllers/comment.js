@@ -1,118 +1,207 @@
-const mongoose = require('mongoose');
-const asyncHandler = require('express-async-handler');
-const { body, query, validationResult } = require('express-validator');
-const Comment = require('../models/comment');
+const asyncHandler = require("express-async-handler");
+const { body, validationResult } = require("express-validator");
+const { v4: uuidv4 } = require("uuid");
+const { Comment, User, Note } = require("../models"); // Sequelize models
+const { getArtSuggestion } = require("../utils/harvardArt");
+const { Op } = require("sequelize");
 
-exports.getAllcomments = [
-    query('description', 'commentBy', 'commentTo').optional().trim(),
+// ✅ Validation
+const commentValidator = () => [
+  body("description")
+    .notEmpty().withMessage("Description is required")
+    .isString().withMessage("Description must be a string"),
 
-    asyncHandler(async (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
-        }
-        const description = req.query.description || '';
-        const commentBy = req.query.commentBy || '';
-        const commentTo = req.query.commentTo || '';
-        const query = {
-            description: { $regex: description, $options: 'i' },
-            commentBy: commentBy ? mongoose.Types.ObjectId(commentBy) : undefined,
-            commentTo: commentTo ? mongoose.Types.ObjectId(commentTo) : undefined
-        };
-        const comments = await Comment.find(query).populate('commentBy', 'username').populate('commentTo', 'note_title').exec();
-        res.status(200).json(comments);
-    })
+  body("commentTo")
+    .notEmpty().withMessage("Commented note is required")
+    .isInt().withMessage("Commented note must be a valid note ID"),
+
+  body("ai_prompt_comment").optional().isString(),
+  body("ai_comment").optional().isString(),
 ];
 
-const commentValidator = () => {
-    return [
-        body('description')
-            .notEmpty().withMessage('Description is required')
-            .isString().withMessage('Description must be a string'),
-        body('commentBy')
-            .notEmpty().withMessage('Commenter is required')
-            .isMongoId().withMessage('Commenter must be a valid MongoDB ObjectId'),
-        body('commentTo')
-            .notEmpty().withMessage('Commented note is required')
-            .isMongoId().withMessage('Commented note must be a valid MongoDB ObjectId')
-        // Optional fields for AI comments
-    ];
-}
+// ✅ Get all comments (with optional filters)
+exports.getAllComments = asyncHandler(async (req, res) => {
+  const { description, commentBy, commentTo } = req.query;
 
+  const where = {};
+  if (description) where.description = { [Op.like]: `%${description}%` };
+  if (commentBy) where.commentBy = commentBy;
+  if (commentTo) where.commentTo = commentTo;
+
+  const comments = await Comment.findAll({ 
+    where,
+    include: [
+      {
+        model: Note,
+        as: "Note",
+        attributes: ["note_title", "id"]
+      }
+    ]
+  });
+
+  // Manually attach user information by looking up cognitoId
+  for (let comment of comments) {
+    const user = await User.findOne({
+      where: { cognitoId: comment.commentBy },
+      attributes: ["username", "cognitoId"]
+    });
+    comment.dataValues.User = user;
+  }
+
+  res.status(200).json(comments);
+});
+
+// ✅ Create a new comment
 exports.createComment = [
-    commentValidator(),
-    asyncHandler(async (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
+  commentValidator(),
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    let ai_comment = "";
+
+    // Process AI comment if ai_prompt_comment is provided
+    if (req.body.ai_prompt_comment && req.body.ai_prompt_comment.trim()) {
+      try {
+        console.log("🎨 Generating AI comment with prompt:", req.body.ai_prompt_comment);
+        ai_comment = await getArtSuggestion(req.body.ai_prompt_comment);
+        console.log("✅ AI comment generated:", ai_comment);
+      } catch (error) {
+        console.error("❌ Error generating AI comment:", error);
+        ai_comment = "Sorry, I couldn't generate an AI comment at this time.";
+      }
+    }
+
+    const newComment = await Comment.create({
+      description: req.body.description,
+      commentBy: req.user.user_id,  // This is the cognitoId from JWT
+      commentTo: req.body.commentTo,
+      ai_prompt_comment: req.body.ai_prompt_comment || "",
+      ai_comment
+    });
+
+    // Fetch the created comment with associations for response
+    const createdComment = await Comment.findByPk(newComment.id, {
+      include: [
+        {
+          model: Note,
+          as: "Note",
+          attributes: ["note_title", "id"]
         }
+      ]
+    });
 
-        const comment = new Comment({
-            description: req.body.description,
-            commentBy: req.body.commentBy,
-            commentTo: req.body.commentTo,
-            // Optional fields for AI comments
-            ai_prompt_comment: req.body.ai_prompt_comment || null,
-            ai_comment: req.body.ai_comment || null
-        });
+    // Manually attach user information
+    const user = await User.findOne({
+      where: { cognitoId: newComment.commentBy },
+      attributes: ["username", "cognitoId"]
+    });
+    createdComment.dataValues.User = user;
 
-        await comment.save();
-        res.status(201).json(comment);
-    })];
-
-exports.getcommentById = [
-    asyncHandler(async (req, res, next) => {
-        const comment = await Comment.findById(req.params.id).populate('commentBy', 'username').populate('commentTo', 'note_title').exec();
-        if (!comment) {
-            return res.status(404).json({ error: 'Comment not found' });
-        }
-        res.status(200).json(comment);
-    })
+    res.status(201).json(createdComment);
+  }),
 ];
 
+// ✅ Get comment by ID
+exports.getCommentById = asyncHandler(async (req, res) => {
+  const comment = await Comment.findByPk(req.params.id, {
+    include: [
+      {
+        model: Note,
+        as: "Note",
+        attributes: ["note_title", "id"]
+      }
+    ]
+  });
+  if (!comment) {
+    return res.status(404).json({ error: "Comment not found" });
+  }
+
+  // Manually attach user information
+  const user = await User.findOne({
+    where: { cognitoId: comment.commentBy },
+    attributes: ["username", "cognitoId"]
+  });
+  comment.dataValues.User = user;
+
+  res.status(200).json(comment);
+});
+
+// ✅ Update comment
 exports.updateComment = [
-    commentValidator(),
-    asyncHandler(async (req, res, next) => {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return res.status(400).json({ errors: errors.array() });
+  commentValidator(),
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const comment = await Comment.findByPk(req.params.id);
+    if (!comment) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    // Check if user owns this comment (using cognitoId)
+    if (comment.commentBy !== req.user.user_id) {
+      return res.status(403).json({ error: "You are not allowed to update this comment" });
+    }
+
+    // Process AI comment if ai_prompt_comment is updated
+    let ai_comment = comment.ai_comment;
+    if (req.body.ai_prompt_comment && req.body.ai_prompt_comment.trim() && 
+        req.body.ai_prompt_comment !== comment.ai_prompt_comment) {
+      try {
+        console.log("🎨 Regenerating AI comment with new prompt:", req.body.ai_prompt_comment);
+        ai_comment = await getArtSuggestion(req.body.ai_prompt_comment);
+        console.log("✅ New AI comment generated:", ai_comment);
+      } catch (error) {
+        console.error("❌ Error regenerating AI comment:", error);
+        ai_comment = "Sorry, I couldn't generate an AI comment at this time.";
+      }
+    }
+
+    await comment.update({
+      description: req.body.description,
+      ai_prompt_comment: req.body.ai_prompt_comment || comment.ai_prompt_comment,
+      ai_comment: ai_comment,
+    });
+
+    // Return updated comment with associations
+    const updatedComment = await Comment.findByPk(req.params.id, {
+      include: [
+        {
+          model: Note,
+          as: "Note",
+          attributes: ["note_title", "id"]
         }
+      ]
+    });
 
-        const comment = await Comment.findById(req.params.id);
-        if (!comment) {
-            return res.status(404).json({ error: 'Comment not found' });
-        }
+    // Manually attach user information
+    const user = await User.findOne({
+      where: { cognitoId: updatedComment.commentBy },
+      attributes: ["username", "cognitoId"]
+    });
+    updatedComment.dataValues.User = user;
 
-        // Check if the user is allowed to update the comment
-        if (comment.commentBy.toString() !== req.user.user_id && !req.user.is_admin) {
-            return res.status(403).json({ error: 'You are not allowed to modify this comment' });
-        }
-
-        // Update the comment fields
-        comment.description = req.body.description;
-        comment.commentBy = req.body.commentBy;
-        comment.commentTo = req.body.commentTo;
-        comment.ai_prompt_comment = req.body.ai_prompt_comment || comment.ai_prompt_comment;
-        comment.ai_comment = req.body.ai_comment || comment.ai_comment;
-
-        await comment.save();
-        res.status(200).json(comment);
-    })
+    res.status(200).json(updatedComment);
+  }),
 ];
 
-exports.deleteComment = [
-    asyncHandler(async (req, res, next) => {
-        const comment = await Comment.findById(req.params.id);
-        if (!comment) {
-            return res.status(404).json({ error: 'Comment not found' });
-        }
+// ✅ Delete comment
+exports.deleteComment = asyncHandler(async (req, res) => {
+  const comment = await Comment.findByPk(req.params.id);
+  if (!comment) {
+    return res.status(404).json({ error: "Comment not found" });
+  }
 
-        // Check if the user is allowed to delete the comment
-        if (comment.commentBy.toString() !== req.user.user_id && !req.user.is_admin) {
-            return res.status(403).json({ error: 'You are not allowed to delete this comment' });
-        }
+  if (comment.commentBy !== req.user.user_id) {
+    return res.status(403).json({ error: "You are not allowed to delete this comment" });
+  }
 
-        await comment.remove();
-        res.status(204).send();
-    })
-];
+  await comment.destroy();
+  res.status(200).json({ message: "Comment deleted successfully" });
+});
+

@@ -2,13 +2,14 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/note');
 
-const authMiddleware = require('../middlewares/authWithJwt');
+const authMiddleware = require('../middlewares/authenticateFlexible');
 
 // Define routes for notes
 router.route('/')
-    // .all(authMiddleware)
+    .all(authMiddleware)
     .get(controller.getAllNotes) // Get all notes
-    .post(controller.createNote); // Create a new note
+    .post(controller.createNote) // Create a new note
+    .delete(controller.deleteAllNotes); // Delete all notes
 
 // Define routes for specific note operations
 router.route('/:id')
