@@ -320,15 +320,74 @@ async function renderNotes(data){
       ctr.appendChild(cbtn);
     }
 
+    // S3 Download URL button (only if image exists and user is logged in)
+    if(token && note.presignedUrl){
+      const downloadUrlBtn = document.createElement("button");
+      downloadUrlBtn.className = "small-btn";
+      downloadUrlBtn.textContent = "S3 Download URL";
+      downloadUrlBtn.addEventListener("click", async ()=>{
+        try {
+          const downloadRes = await getJSON(`/notes/presigned/download/${note.id}`);
+          
+          if(downloadRes.error) {
+            alert("Error: " + downloadRes.error);
+            return;
+          }
+          
+          // Create popup content with copy button
+          const popupContent = `
+            Download URL for "${note.note_title}":
+            
+${downloadRes.presignedUrl}
+
+This URL is valid for 1 hour.
+
+Click OK to copy the URL to clipboard.
+          `;
+          
+          // Show popup and copy URL if user clicks OK
+          if(confirm(popupContent)) {
+            // Copy URL to clipboard
+            try {
+              await navigator.clipboard.writeText(downloadRes.presignedUrl);
+              alert("URL copied to clipboard!");
+            } catch(err) {
+              // Fallback for older browsers
+              const textArea = document.createElement("textarea");
+              textArea.value = downloadRes.presignedUrl;
+              document.body.appendChild(textArea);
+              textArea.select();
+              document.execCommand('copy');
+              document.body.removeChild(textArea);
+              alert("URL copied to clipboard!");
+            }
+          }
+          
+        } catch(err) {
+          alert("Error: " + err.message);
+        }
+      });
+      ctr.appendChild(downloadUrlBtn);
+    }
+
     // comments display (if present)
     const commentsDiv = document.createElement("div");
     if(note.Comments && note.Comments.length){
       const list = document.createElement("ul");
       note.Comments.forEach(c => {
         const li = document.createElement("li");
-        const aiPart = c.ai_comment ? ` _____reccomendation from Harvard art Museum: ${c.ai_comment}` : "";
         li.textContent = `${c.description} — by ${c.User?.username ?? "unknown"} (${new Date(c.createdAt).toLocaleString()})`;
         list.appendChild(li);
+        
+        // Add AI comment if it exists
+        if (c.ai_comment) {
+          const aiLi = document.createElement("li");
+          aiLi.style.fontStyle = "italic";
+          aiLi.style.color = "#666";
+          aiLi.style.marginLeft = "20px";
+          aiLi.textContent = `🎨 AI Recommendation: ${c.ai_comment}`;
+          list.appendChild(aiLi);
+        }
       });
       commentsDiv.appendChild(list);
     }

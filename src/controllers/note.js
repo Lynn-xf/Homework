@@ -30,21 +30,16 @@ exports.getAllNotes = asyncHandler(async (req, res) => {
 
     // Normal users can only see their own notes, admins can see all notes
     if (!req.user.is_admin) {
-      if (req.user.auth_provider === 'google') {
-        // For Google users, use their Google ID directly (no database lookup)
-        where.ownerId = req.user.user_id;
-      } else {
-        // For Cognito users, look up the user in database (existing flow)
-        const user = await User.findOne({
-          where: { cognitoId: req.user.user_id }
-        });
-        
-        if (!user) {
-          return res.status(404).json({ error: "User not found" });
-        }
-        
-        where.ownerId = user.id; // Use the database user ID
+      // Both Google and Cognito users need to look up their database user ID
+      const user = await User.findOne({
+        where: { cognitoId: req.user.user_id }
+      });
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
       }
+      
+      where.ownerId = user.id; // Use the database user ID for both Google and Cognito users
     }
 
     const notes = await Note.findAll({
@@ -117,26 +112,18 @@ exports.createNote = asyncHandler(async (req, res) => {
   const noteFile = req.files.note_picture;
 
   try {
-    let ownerId;
-    
-    if (req.user.auth_provider === 'google') {
-      // For Google users, use their Google ID directly
-      ownerId = userId;
-    } else {
-      // For Cognito users, look up the user in database (existing flow)
-      const user = await User.findOne({
-        where: { cognitoId: userId }
-      });
+    // Both Google and Cognito users need to look up their database user ID
+    const user = await User.findOne({
+      where: { cognitoId: userId }
+    });
 
-      if (!user) {
-        return res.status(404).json({ error: "User not found in database" });
-      }
-      
-      ownerId = user.id;
+    if (!user) {
+      return res.status(404).json({ error: "User not found in database" });
     }
+    
+    const ownerId = user.userId; // Use the Sequelize model field name (userId, not id)
 
     const s3UploadResult = await uploadNoteImage(noteFile, userId);
-
     const newNote = await Note.create({
       note_title: req.body.note_title,
       note_picture: s3UploadResult.s3Key,
@@ -253,8 +240,19 @@ exports.deleteNote = asyncHandler(async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
-  if (note.ownerId !== req.user.user_id && !req.user.is_admin) {
-    return res.status(403).json({ error: "You are not allowed to delete this note" });
+  // Check ownership - Look up the user by their Cognito/Google ID to get the database user ID
+  if (!req.user.is_admin) {
+    const user = await User.findOne({
+      where: { cognitoId: req.user.user_id }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    
+    if (note.ownerId !== user.id) {
+      return res.status(403).json({ error: "You are not allowed to delete this note" });
+    }
   }
 
   const { isS3Image } = require("../utils/s3Helper");
@@ -314,8 +312,18 @@ exports.getDownloadPresignedUrl = asyncHandler(async (req, res) => {
 
     // Check ownership or admin access
     const isAdmin = req.user.is_admin;
-    if (!isAdmin && note.ownerId != userId) {
-      return res.status(403).json({ error: "You can only access your own notes" });
+    if (!isAdmin) {
+      const user = await User.findOne({
+        where: { cognitoId: req.user.user_id }
+      });
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      if (note.ownerId !== user.id) {
+        return res.status(403).json({ error: "You can only access your own notes" });
+      }
     }
 
     const { isS3Image } = require("../utils/s3Helper");

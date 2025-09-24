@@ -16,8 +16,7 @@ async function getArtSuggestion(query) {
       const title = art.title || "Untitled";
       const artist = art.people && art.people[0]?.name ? ` by ${art.people[0].name}` : "";
       const image = art.primaryimageurl || "";
-      const link = art.objecturl || "";
-      return `How about exploring the artwork "${title}"${artist}? Here's a preview: ${image}\nMore details: ${link}`;
+      return `How about exploring the artwork "${title}"${artist}? Here's a preview: ${image}`;
     } else {
       return `No matching artwork found for "${query}".`;
     }

@@ -13,6 +13,8 @@
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.891.0",
     "@aws-sdk/client-s3": "^3.891.0",
+    "@aws-sdk/client-secrets-manager": "^3.895.0",
+    "@aws-sdk/client-ssm": "^3.895.0",
     "@aws-sdk/s3-request-presigner": "^3.891.0",
     "aws-jwt-verify": "^5.1.0",
     "axios": "^1.11.0",

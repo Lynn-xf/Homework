@@ -4,9 +4,9 @@ const asyncHandler = require("express-async-handler");
 const { User } = require("../models"); // Import User model
 
 // Cognito .env
-const userPoolId = process.env.COGNITO_USER_POOL_ID || "ap-southeast-2_I07bnwdFy";
-const clientId = process.env.COGNITO_CLIENT_ID || "6d9099qdimktn8bbodt749e2hs";
-const clientSecret = process.env.COGNITO_CLIENT_SECRET || "1sdojnefhltgfpt79eipl7e4mnvqqogn9fc5r95nlip616plqlb4";
+const userPoolId = process.env.COGNITO_USER_POOL_ID;
+const clientId = process.env.COGNITO_CLIENT_ID;
+const clientSecret = process.env.COGNITO_CLIENT_SECRET;
 
 // Crypto for hashing
 const crypto = require("crypto");
