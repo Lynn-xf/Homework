@@ -18,19 +18,10 @@ services:
   app:
     build: .
     restart: always
-    environment:
-      PORT: ${PORT}
-      JWT_SECRET: ${JWT_SECRET}
-      DB_HOST: 172.31.120.176
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_PORT: 3306
-      HARVARD_API_KEY: ${HARVARD_API_KEY}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
     ports:
       - "80:3000"
-      - "${PORT}:3000"
+      #- "${PORT}:3000"
+      - "3000:3000"
       - "443:3443"
       - "3443:3443"
     volumes:

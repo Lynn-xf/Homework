@@ -18,72 +18,80 @@ const noteValidator = () => [
 
 // ✅ Get all notes (with optional filters)
 exports.getAllNotes = asyncHandler(async (req, res) => {
-  const { note_title, ai_summary, time, owner } = req.query;
+    try {
 
-  let where = {};
-  if (note_title) where.note_title = { [Op.like]: `%${note_title}%` };
-  if (ai_summary) where.ai_summary = { [Op.like]: `%${ai_summary}%` };
-  if (time) where.time = time;
-  if (owner) where.ownerId = owner;
-
-  // Normal users can only see their own notes, admins can see all notes
-  if (!req.user.is_admin) {
-    if (req.user.auth_provider === 'google') {
-      // For Google users, use their Google ID directly (no database lookup)
-      where.ownerId = req.user.user_id;
-    } else {
-      // For Cognito users, look up the user in database (existing flow)
-      const user = await User.findOne({
-        where: { cognitoId: req.user.user_id }
-      });
+      const { note_title, ai_summary, time, owner } = req.query;
       
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      
-      where.ownerId = user.id; // Use the database user ID
-    }
-  }
+      let where = {};
+      if (note_title) where.note_title = { [Op.like]: `%${note_title}%` };
+    if (ai_summary) where.ai_summary = { [Op.like]: `%${ai_summary}%` };
+    if (time) where.time = time;
+    if (owner) where.ownerId = owner;
 
-  const notes = await Note.findAll({
-    where,
-    include: [
-      { model: Comment, as: "Comments", attributes: ["id", "description", "createdAt", "commentBy", "ai_comment", "ai_prompt_comment"] },
-      { model: User, as: "Owner", attributes: ["id", "username", "cognitoId"] }
-    ]
-  });
-
-  // Generate presigned URLs for S3 images and manually attach user information to comments based on cognitoId
-  const { getNoteImageUrl, isS3Image } = require("../utils/s3Helper");
-  
-  for (let note of notes) {
-    // Generate presigned URL for S3 images
-    if (note.note_picture && isS3Image(note.note_picture)) {
-      try {
-        const presignedUrl = await getNoteImageUrl(note.note_picture);
-        note.dataValues.presignedUrl = presignedUrl;
-      } catch (error) {
-        console.error("Error generating presigned URL for note", note.id, ":", error);
-        note.dataValues.presignedUrl = null;
-      }
-    }
-
-    // Manually attach user information to comments based on cognitoId
-    if (note.Comments && note.Comments.length > 0) {
-      for (let comment of note.Comments) {
+    // Normal users can only see their own notes, admins can see all notes
+    if (!req.user.is_admin) {
+      if (req.user.auth_provider === 'google') {
+        // For Google users, use their Google ID directly (no database lookup)
+        where.ownerId = req.user.user_id;
+      } else {
+        // For Cognito users, look up the user in database (existing flow)
         const user = await User.findOne({
-          where: { cognitoId: comment.commentBy },
-          attributes: ["username", "cognitoId"]
+          where: { cognitoId: req.user.user_id }
         });
-        comment.dataValues.User = user;
+        
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+        
+        where.ownerId = user.id; // Use the database user ID
       }
     }
-  }
 
-  res.status(200).json(notes);
+    const notes = await Note.findAll({
+      where,
+      include: [
+        { model: Comment, as: "Comments", attributes: ["id", "description", "createdAt", "commentBy", "ai_comment", "ai_prompt_comment"] },
+        { model: User, as: "Owner", attributes: ["id", "username", "cognitoId"] }
+      ]
+    });
+
+    // Generate presigned URLs for S3 images and manually attach user information to comments based on cognitoId
+    const { getNoteImageUrl, isS3Image } = require("../utils/s3Helper");
+    
+    for (let note of notes) {
+      // Generate presigned URL for S3 images
+      if (note.note_picture && isS3Image(note.note_picture)) {
+        try {
+          const presignedUrl = await getNoteImageUrl(note.note_picture);
+          note.dataValues.presignedUrl = presignedUrl;
+        } catch (error) {
+          console.error("Error generating presigned URL for note", note.id, ":", error);
+          note.dataValues.presignedUrl = null;
+        }
+      }
+
+      // Manually attach user information to comments based on cognitoId
+      if (note.Comments && note.Comments.length > 0) {
+        for (let comment of note.Comments) {
+          const user = await User.findOne({
+            where: { cognitoId: comment.commentBy },
+            attributes: ["username", "cognitoId"]
+          });
+          comment.dataValues.User = user;
+        }
+      }
+    }
+    res.status(200).json(notes);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).json({
+        error: "Internal Error: Unable to connect to database", 
+        details: err.message
+    });
+  }
 });
 
-
+// ✅ Create a new note
 exports.createNote = asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {

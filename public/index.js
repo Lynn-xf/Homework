@@ -168,8 +168,8 @@ document.getElementById("createNoteForm").addEventListener("submit", async (e)=>
 });
 
 // comment creation - only for admins per requirement (UI shows only to admin on each card)
-async function createComment(noteId, description, ai_prompt_comment){
-  const body = { description, commentTo: noteId };
+async function createComment(noteId, description, ai_prompt_comment, userId){
+  const body = { description, commentTo: noteId, commentBy: userId};
   if (ai_prompt_comment) body.ai_prompt_comment = ai_prompt_comment;
   const data = await postJSON("/comments", body);
   return data;
@@ -232,7 +232,9 @@ async function renderNotes(data){
 
     const meta = document.createElement("div");
     meta.className = "muted";
-    meta.textContent = `owner: ${note.owner ?? (note.User?.id ?? "unknown")} • time: ${note.time ?? ""}`;
+    // meta.textContent = `owner: ${note.owner ?? (note.User?.id ?? "unknown")} • time: ${note.time ?? ""}`;
+    meta.textContent = `owner: ${note.Owner?.username ?? "unknown"} • time: ${note.time ?? ""}`;
+
 
     const summary = document.createElement("p");
     summary.textContent = note.ai_summary ?? "";
@@ -244,7 +246,8 @@ async function renderNotes(data){
     ctr.style.marginTop = "8px";
 
     // delete per-note: allowed for admin or owner
-    if(isAdmin || (myId && Number(myId) === Number(note.owner))){
+    // if(isAdmin || (myId && Number(myId) === Number(note.owner))){
+     if(isAdmin || (myId && Number(myId) === Number(note.ownerId))){
       const del = document.createElement("button");
       del.className = "small-btn";
       del.textContent = "Delete";
@@ -258,7 +261,8 @@ async function renderNotes(data){
     }
 
     // update note (owner only)
-    if(myId && Number(myId) === Number(note.owner)){
+    // if(myId && Number(myId) === Number(note.owner)){
+    if(myId && Number(myId) === Number(note.ownerId)){
       const upd = document.createElement("button");
       upd.className = "small-btn";
       upd.textContent = "Edit Title";
@@ -305,7 +309,7 @@ async function renderNotes(data){
           const fd = new FormData(form);
           const desc = fd.get("description");
           const aiPrompt = fd.get("ai_prompt_comment");
-          const res = await createComment(note.id, desc, aiPrompt);
+          const res = await createComment(note.id, desc, aiPrompt, myId);
           alert(JSON.stringify(res));
           form.remove();
           refreshNotes();
@@ -323,7 +327,7 @@ async function renderNotes(data){
       note.Comments.forEach(c => {
         const li = document.createElement("li");
         const aiPart = c.ai_comment ? ` _____reccomendation from Harvard art Museum: ${c.ai_comment}` : "";
-        li.textContent = `${c.description}${aiPart} (${new Date(c.createdAt).toLocaleString()})`;
+        li.textContent = `${c.description} — by ${c.User?.username ?? "unknown"} (${new Date(c.createdAt).toLocaleString()})`;
         list.appendChild(li);
       });
       commentsDiv.appendChild(list);

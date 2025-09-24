@@ -59,48 +59,54 @@ exports.createComment = [
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
+    try {
+      let ai_comment = "";
 
-    let ai_comment = "";
-
-    // Process AI comment if ai_prompt_comment is provided
-    if (req.body.ai_prompt_comment && req.body.ai_prompt_comment.trim()) {
-      try {
-        console.log("🎨 Generating AI comment with prompt:", req.body.ai_prompt_comment);
-        ai_comment = await getArtSuggestion(req.body.ai_prompt_comment);
-        console.log("✅ AI comment generated:", ai_comment);
-      } catch (error) {
-        console.error("❌ Error generating AI comment:", error);
-        ai_comment = "Sorry, I couldn't generate an AI comment at this time.";
-      }
-    }
-
-    const newComment = await Comment.create({
-      description: req.body.description,
-      commentBy: req.user.user_id,  // This is the cognitoId from JWT
-      commentTo: req.body.commentTo,
-      ai_prompt_comment: req.body.ai_prompt_comment || "",
-      ai_comment
-    });
-
-    // Fetch the created comment with associations for response
-    const createdComment = await Comment.findByPk(newComment.id, {
-      include: [
-        {
-          model: Note,
-          as: "Note",
-          attributes: ["note_title", "id"]
+      // Process AI comment if ai_prompt_comment is provided
+      if (req.body.ai_prompt_comment && req.body.ai_prompt_comment.trim()) {
+        try {
+          console.log("🎨 Generating AI comment with prompt:", req.body.ai_prompt_comment);
+          ai_comment = await getArtSuggestion(req.body.ai_prompt_comment);
+          console.log("✅ AI comment generated:", ai_comment);
+        } catch (error) {
+          console.error("❌ Error generating AI comment:", error);
+          ai_comment = "Sorry, I couldn't generate an AI comment at this time.";
         }
-      ]
-    });
+      }
 
-    // Manually attach user information
-    const user = await User.findOne({
-      where: { cognitoId: newComment.commentBy },
-      attributes: ["username", "cognitoId"]
-    });
-    createdComment.dataValues.User = user;
+      // User Comment
+      const newComment = await Comment.create({
+        description: req.body.description,
+        commentBy: req.user.user_id,  // This is the cognitoId from JWT
+        commentTo: req.body.commentTo,
+        ai_prompt_comment: req.body.ai_prompt_comment || "",
+        ai_comment
+      });
 
-    res.status(201).json(createdComment);
+      // Fetch the created comment with associations for response
+      const createdComment = await Comment.findByPk(newComment.id, {
+        include: [
+          {
+            model: Note,
+            as: "Note",
+            attributes: ["note_title", "id"]
+          }
+        ]
+      });
+
+      // Manually attach user information
+      const user = await User.findOne({
+        where: { cognitoId: newComment.commentBy },
+        attributes: ["username", "cognitoId"]
+      });
+      createdComment.dataValues.User = user;
+
+      res.status(201).json(createdComment);
+    } catch (err) {
+      console.error("Failed to create comment: " + err.message);
+      //return res.status(500).json({errors: "Internal Server Error", details: err.message});
+      return res.status(500).json({errors: "Internal Server Error", details: err.message, user: req.user });
+    }
   }),
 ];
 
