@@ -28,6 +28,7 @@
     "google-auth-library": "^10.3.0",
     "jsonwebtoken": "^9.0.2",
     "mariadb": "^3.4.5",
+    "memcached": "^2.2.2",
     "mongodb": "^6.18.0",
     "mongoose": "^8.18.0",
     "node-fetch": "^3.3.2",

@@ -4,6 +4,7 @@ const { uploadNoteImage, deleteNoteImage } = require("../utils/s3Helper");
 const asyncHandler = require("express-async-handler");
 const { body, validationResult } = require("express-validator");
 const { Op } = require("sequelize");
+const { getNotesCached } = require("../utils/memCached");
 
 // ✅ Validation rules for creating notes
 const noteValidator = () => [
@@ -18,70 +19,73 @@ const noteValidator = () => [
 
 // ✅ Get all notes (with optional filters)
 exports.getAllNotes = asyncHandler(async (req, res) => {
-    try {
+  try {
+    const { note_title, ai_summary, time, owner } = req.query;
 
-      const { note_title, ai_summary, time, owner } = req.query;
-      
-      let where = {};
-      if (note_title) where.note_title = { [Op.like]: `%${note_title}%` };
+    const where = {};
+    if (note_title) where.note_title = { [Op.like]: `%${note_title}%` };
     if (ai_summary) where.ai_summary = { [Op.like]: `%${ai_summary}%` };
     if (time) where.time = time;
     if (owner) where.ownerId = owner;
 
-    // Normal users can only see their own notes, admins can see all notes
+    // Resolve a unified DB user id for both providers
+    let dbUserId = null;
     if (!req.user.is_admin) {
-      // Both Google and Cognito users need to look up their database user ID
-      const user = await User.findOne({
-        where: { cognitoId: req.user.user_id }
-      });
-      
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
+      if (req.user.auth_provider === 'google') {
+        // For Google flow we already generated an integer id and stored it as req.user.user_id
+        dbUserId = req.user.user_id; // numeric id used as PK
+      } else {
+        // Cognito: look up by cognitoId (which is a string) to get numeric PK userId
+        const found = await User.findOne({ where: { cognitoId: req.user.user_id } });
+        if (!found) return res.status(404).json({ error: "User not found" });
+        dbUserId = found.userId; // internal PK
       }
-      
-      where.ownerId = user.id; // Use the database user ID for both Google and Cognito users
+      where.ownerId = dbUserId;
     }
 
-    const notes = await Note.findAll({
-      where,
-      include: [
-        { model: Comment, as: "Comments", attributes: ["id", "description", "createdAt", "commentBy", "ai_comment", "ai_prompt_comment"] },
-        { model: User, as: "Owner", attributes: ["id", "username", "cognitoId"] }
-      ]
-    });
+  // Fetch all comments from ElastiCache first,
+  // then fetch from Database if there is no cache
+    const notes = await getNotesCached();
 
-    // Generate presigned URLs for S3 images and manually attach user information to comments based on cognitoId
     const { getNoteImageUrl, isS3Image } = require("../utils/s3Helper");
-    
-    for (let note of notes) {
-      // Generate presigned URL for S3 images
+
+    // Build a cache to avoid N + 1 user lookups for comments
+    const userCache = new Map();
+
+    for (const note of notes) {
       if (note.note_picture && isS3Image(note.note_picture)) {
         try {
           const presignedUrl = await getNoteImageUrl(note.note_picture);
-          note.dataValues.presignedUrl = presignedUrl;
+          //note.dataValues.presignedUrl = presignedUrl;
+          note.presignedUrl = presignedUrl;
         } catch (error) {
-          console.error("Error generating presigned URL for note", note.id, ":", error);
+          console.error("Error generating presigned URL for note", note.id, ":", error.message);
           note.dataValues.presignedUrl = null;
         }
       }
 
-      // Manually attach user information to comments based on cognitoId
-      if (note.Comments && note.Comments.length > 0) {
-        for (let comment of note.Comments) {
-          const user = await User.findOne({
-            where: { cognitoId: comment.commentBy },
-            attributes: ["username", "cognitoId"]
-          });
-          comment.dataValues.User = user;
+      if (note.Comments && note.Comments.length) {
+        for (const comment of note.Comments) {
+          const commentByKey = comment.commentBy;
+          if (!userCache.has(commentByKey)) {
+            // Try Cognito id first
+            const u = await User.findOne({
+              where: { cognitoId: commentByKey },
+              attributes: ["userId", "username", "cognitoId", "is_admin"]
+            });
+            userCache.set(commentByKey, u || null);
+          }
+          comment.User = userCache.get(commentByKey); // may be null if not found
         }
       }
     }
+
     res.status(200).json(notes);
   } catch (err) {
-    console.error(err.message);
+    console.error("getAllNotes error:", err);
     res.status(500).json({
-        error: "Internal Error: Unable to connect to database", 
-        details: err.message
+      error: "Internal Error: Unable to fetch notes",
+      details: err.message
     });
   }
 });
@@ -98,9 +102,9 @@ exports.createNote = asyncHandler(async (req, res) => {
   }
 
   console.log("🔍 req.user in createNote:", req.user);
-  const userId = req.user.user_id;
-  console.log("🔍 userId extracted:", userId);
-  if (!userId) {
+  const incomingId = req.user.user_id;
+  console.log("🔍 incoming req.user.user_id:", incomingId, "provider:", req.user.auth_provider);
+  if (!incomingId) {
     console.log("❌ No userId found, req.user:", req.user);
     return res.status(401).json({ error: "Authentication required" });
   }
@@ -112,18 +116,20 @@ exports.createNote = asyncHandler(async (req, res) => {
   const noteFile = req.files.note_picture;
 
   try {
-    // Both Google and Cognito users need to look up their database user ID
-    const user = await User.findOne({
-      where: { cognitoId: userId }
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found in database" });
+    let ownerId;
+    if (req.user.auth_provider === 'google') {
+      // For Google we already ensured (or attempted) creation with integer PK matching user_id
+      ownerId = incomingId; // numeric PK directly
+    } else {
+      // Cognito flow - find numeric internal userId via cognitoId
+      const dbUser = await User.findOne({ where: { cognitoId: incomingId } });
+      if (!dbUser) {
+        return res.status(404).json({ error: "User not found in database" });
+      }
+      ownerId = dbUser.userId; // internal PK
     }
-    
-    const ownerId = user.userId; // Use the Sequelize model field name (userId, not id)
 
-    const s3UploadResult = await uploadNoteImage(noteFile, userId);
+    const s3UploadResult = await uploadNoteImage(noteFile, incomingId);
     const newNote = await Note.create({
       note_title: req.body.note_title,
       note_picture: s3UploadResult.s3Key,
@@ -149,7 +155,10 @@ exports.createNote = asyncHandler(async (req, res) => {
       presignedUrl: s3UploadResult.presignedUrl
     };
 
-    res.status(201).json(responseNote);
+    res.status(201).json({ 
+      message: "Note created successfully", 
+      resultS3: responseNote
+    });
   } catch (error) {
     console.error("Error uploading file to S3:", error);
     res.status(500).json({ error: "Failed to upload file to S3: " + error.message });
@@ -279,7 +288,7 @@ exports.getUploadPresignedUrl = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "fileName is required" });
   }
 
-  const userId = req.user.id || req.user.user_id;
+  const userId = req.user.user_id; // unified
   
   try {
     const { generatePresignedUploadUrl } = require("../utils/setupS3");
@@ -300,7 +309,7 @@ exports.getUploadPresignedUrl = asyncHandler(async (req, res) => {
 // ✅ Get presigned URL for direct S3 download
 exports.getDownloadPresignedUrl = asyncHandler(async (req, res) => {
   const noteId = req.params.id;
-  const userId = req.user.id || req.user.user_id;
+  const userId = req.user.user_id; // unified
   
   try {
     // Find the note and verify ownership

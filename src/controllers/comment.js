@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require("uuid");
 const { Comment, User, Note } = require("../models"); // Sequelize models
 const { getArtSuggestion } = require("../utils/harvardArt");
 const { Op } = require("sequelize");
+const { getCommentsCached } = require("../utils/memCached");
 
 // ✅ Validation
 const commentValidator = () => [
@@ -28,16 +29,9 @@ exports.getAllComments = asyncHandler(async (req, res) => {
   if (commentBy) where.commentBy = commentBy;
   if (commentTo) where.commentTo = commentTo;
 
-  const comments = await Comment.findAll({ 
-    where,
-    include: [
-      {
-        model: Note,
-        as: "Note",
-        attributes: ["note_title", "id"]
-      }
-    ]
-  });
+  // Fetch all comments from ElastiCache first,
+  // then fetch from Database if there is no cache
+  const comments = await getCommentsCached();
 
   // Manually attach user information by looking up cognitoId
   for (let comment of comments) {
@@ -46,6 +40,7 @@ exports.getAllComments = asyncHandler(async (req, res) => {
       attributes: ["username", "cognitoId"]
     });
     comment.dataValues.User = user;
+    //comment.User = user;
   }
 
   res.status(200).json(comments);
@@ -101,11 +96,11 @@ exports.createComment = [
       });
       createdComment.dataValues.User = user;
 
-      res.status(201).json(createdComment);
+      res.status(201).json({ message: "Comment created successfully"});
     } catch (err) {
       console.error("Failed to create comment: " + err.message);
       //return res.status(500).json({errors: "Internal Server Error", details: err.message});
-      return res.status(500).json({errors: "Internal Server Error", details: err.message, user: req.user });
+      return res.status(500).json({errors: "Internal Server Error", details: err.message, user: req.user.user_id });
     }
   }),
 ];
