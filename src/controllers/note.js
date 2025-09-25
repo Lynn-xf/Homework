@@ -226,7 +226,7 @@ exports.updateNote = [
         return res.status(404).json({ error: "User not found" });
       }
       
-      if (note.ownerId !== user.id) {
+      if (note.ownerId !== user.userId) {
         return res.status(403).json({ error: "You are not allowed to modify this note" });
       }
     }
@@ -259,7 +259,7 @@ exports.deleteNote = asyncHandler(async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
     
-    if (note.ownerId !== user.id) {
+    if (note.ownerId !== user.userId) {
       return res.status(403).json({ error: "You are not allowed to delete this note" });
     }
   }
@@ -322,15 +322,19 @@ exports.getDownloadPresignedUrl = asyncHandler(async (req, res) => {
     // Check ownership or admin access
     const isAdmin = req.user.is_admin;
     if (!isAdmin) {
-      const user = await User.findOne({
-        where: { cognitoId: req.user.user_id }
-      });
-      
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
+      // Resolve the numeric owner id for current requester
+      let requesterOwnerId;
+      if (req.user.auth_provider === 'google') {
+        requesterOwnerId = userId; // already numeric PK set during Google auth
+      } else {
+        const user = await User.findOne({ where: { cognitoId: userId } });
+        if (!user) {
+          return res.status(404).json({ error: "User not found" });
+        }
+        requesterOwnerId = user.userId;
       }
-      
-      if (note.ownerId !== user.id) {
+
+      if (note.ownerId !== requesterOwnerId) {
         return res.status(403).json({ error: "You can only access your own notes" });
       }
     }

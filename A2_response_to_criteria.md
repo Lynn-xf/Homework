@@ -84,11 +84,12 @@ i-0d263e1efb2452970
 
 ### Core - Statelessness
 
-- **What data is stored within your application that is not stored in cloud data services?:** [eg. intermediate video files that have been transcoded but not stabilised]
-- **Why is this data not considered persistent state?:** [eg. intermediate files can be recreated from source if they are lost]
-- **How does your application ensure data consistency if the app suddenly stops?:** [eg. journal used to record data transactions before they are done.  A separate task scans the journal and corrects problems on startup and once every 5 minutes afterwards. ]
+- **What data is stored within your application that is not stored in cloud data services?:**  Temporary in‑memory objects such as uploaded image buffers before S3 upload, AI summary generation intermediate strings, and short‑lived authentication/session context in request scope.
+- **Why is this data not considered persistent state?:** f lost (e.g. server crash), it can be regenerated or re-submitted because the authoritative data (images, users, notes, comments) is already persisted in S3 and MariaDB.
+- **How does your application ensure data consistency if the app suddenly stops?:** The important data in terms of function (note metadata, comments, user records, image objects) occur directly write to MariaDB or S3 before responding, so on restart the service the data can be retreived or recontructed from mariaDB and S3. 
 - **Relevant files:**
-    -
+    -Ass2/Homework/src/controllers      //define the workflow to interact to database and S3, including user notes (note meta data is in mariaDB, note pictures are in S3)and comments
+    -Ass2/Homework/src/middlewares      //define the user information temporarily stored in token
 
 ### Graceful handling of persistent connections
 
